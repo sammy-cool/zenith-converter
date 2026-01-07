@@ -34,17 +34,42 @@ app.get("/progress/:jobId", (req, res) => {
 });
 
 app.post("/convert", upload.single("zipfile"), async (req, res) => {
-  const jobId = Date.now().toString();
+  if (!req.file) return res.status(400).send("No file uploaded");
+
   const zipPath = req.file.path;
+  const stats = fs.statSync(zipPath);
+  const fileSizeInMB = stats.size / (1024 * 1024);
+
+  // --- ENTERPRISE MEMORY GUARD ---
+  // Rule: On a 512MB server, we shouldn't process Zips > 50MB
+  // because unzipping + chromium rendering will double/triple that.
+  const MAX_ALLOWED_MB = 50;
+
+  if (fileSizeInMB > MAX_ALLOWED_MB) {
+    await fs.remove(zipPath); // Cleanup immediately
+    return res.status(413).json({
+      error: "FILE_TOO_LARGE",
+      message: `The ZIP (${fileSizeInMB.toFixed(
+        1
+      )}MB) exceeds the Render Free Tier limit (${MAX_ALLOWED_MB}MB).`,
+    });
+  }
+
+  const jobId = Date.now().toString();
   const filters = req.body.filters ? req.body.filters.split(",") : [];
 
   // Initialize Job
   jobs[jobId] = {
     status: "processing",
     percent: 0,
-    message: "Warming up engine...",
+    message: "Memory Check Passed. Initializing...",
     downloadUrl: null,
   };
+
+  Object.assign(jobs[jobId], {
+    percent: 5,
+    message: "Initialization done. Processing...",
+  });
 
   // Send jobId immediately to prevent UI freeze
   res.json({ jobId });

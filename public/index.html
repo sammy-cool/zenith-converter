@@ -165,9 +165,20 @@
 
         const fd = new FormData();
         fd.append("zipfile", fileIn.files[0]);
-        fd.append("filters", "node_modules,.git,dist,.venv");
+        fd.append("filters", "node_modules,.git,dist");
 
         const res = await fetch("/convert", { method: "POST", body: fd });
+        // Check for Memory Guard rejection
+        if (res.status === 413) {
+          const errorData = await res.json();
+          alert(
+            `🚨 ${errorData.message}\n\nPro Tip: Try filtering out node_modules or .git before zipping!`
+          );
+          btn.disabled = false;
+          document.getElementById("pBox").style.display = "none";
+          return;
+        }
+
         const { jobId } = await res.json();
 
         // Connect to real-time logs

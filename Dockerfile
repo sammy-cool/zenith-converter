@@ -29,4 +29,4 @@ RUN mkdir -p uploads temp_extracted public
 EXPOSE 3000
 
 # 9. Start the application with optimized memory
-CMD ["node", "--max-old-space-size=4096", "app.js"]
+CMD ["node", "app.js"]
