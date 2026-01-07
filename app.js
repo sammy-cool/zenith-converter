@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
+const path = require("node:path");
 const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
 const puppeteer = require("puppeteer");
