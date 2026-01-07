@@ -1,11 +1,11 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("node:path");
+const path = require("path");
 const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
 const puppeteer = require("puppeteer");
 const hljs = require("highlight.js");
-const { marked } = require("marked.cjs");
+const { marked } = require("marked");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
