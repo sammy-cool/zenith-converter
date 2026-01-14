@@ -19,6 +19,7 @@
     "highlight.js": "^11.11.1",
     "marked": "^4.3.0",
     "multer": "^2.0.2",
+    "pdf-lib": "^1.17.1",
     "puppeteer": "^24.34.0"
   }
 }
