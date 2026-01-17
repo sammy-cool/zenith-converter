@@ -1,21 +1,41 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("node:path");
+const path = require("path");
 const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
-const puppeteer = require("puppeteer");
-const hljs = require("highlight.js");
-const { marked } = require("marked");
+const winston = require("winston"); // Enterprise Logger
+const PDFDocument = require("pdfkit");
+
+// --- 1. ENTERPRISE LOGGER SETUP ---
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json(),
+  ),
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple(),
+      ),
+    }),
+    new winston.transports.File({
+      filename: "zenith-error.log",
+      level: "error",
+    }),
+  ],
+});
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
 app.use(express.static("public"));
+app.use(express.json());
 
-// Global Job Store
 const jobs = {};
 
-// SSE Endpoint for real-time progress
+// SSE Endpoint for Real-time Progress
 app.get("/progress/:jobId", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -33,166 +53,223 @@ app.get("/progress/:jobId", (req, res) => {
   }, 500);
 });
 
+// --- 2. CONVERSION ENDPOINT ---
 app.post("/convert", upload.single("zipfile"), async (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded");
 
   const zipPath = req.file.path;
-  const stats = fs.statSync(zipPath);
-  const fileSizeInMB = stats.size / (1024 * 1024);
+  const jobId = Date.now().toString();
 
-  // --- ENTERPRISE MEMORY GUARD ---
-  // Rule: On a 512MB server, we shouldn't process Zips > 50MB
-  // because unzipping + chromium rendering will double/triple that.
-  const MAX_ALLOWED_MB = 50;
-
-  if (fileSizeInMB > MAX_ALLOWED_MB) {
-    await fs.remove(zipPath); // Cleanup immediately
-    return res.status(413).json({
-      error: "FILE_TOO_LARGE",
-      message: `The ZIP (${fileSizeInMB.toFixed(
-        1
-      )}MB) exceeds the Render Free Tier limit (${MAX_ALLOWED_MB}MB).`,
-    });
+  // Parse options sent from Frontend
+  let options = {};
+  try {
+    options = JSON.parse(req.body.options || "{}");
+  } catch (e) {
+    options = {};
   }
 
-  const jobId = Date.now().toString();
-  const filters = req.body.filters ? req.body.filters.split(",") : [];
+  logger.info(`Job ${jobId} started. Options: ${JSON.stringify(options)}`);
 
-  // Initialize Job
   jobs[jobId] = {
     status: "processing",
     percent: 0,
-    message: "Memory Check Passed. Initializing...",
+    message: "Initializing Zenith Engine...",
     downloadUrl: null,
   };
 
-  Object.assign(jobs[jobId], {
-    percent: 5,
-    message: "Initialization done. Processing...",
-  });
-
-  // Send jobId immediately to prevent UI freeze
   res.json({ jobId });
 
-  // Run processing in background
-  processZip(jobId, zipPath, filters);
+  // Start Background Process
+  processZip(jobId, zipPath, options);
 });
 
-async function processZip(jobId, zipPath, filters) {
+// --- 3. BACKGROUND WORKER ---
+async function processZip(jobId, zipPath, options) {
   const workDir = path.join(__dirname, "temp_extracted", jobId);
+  const pdfName = `Zenith_Export_${jobId}.pdf`;
+  const pdfPath = path.join(__dirname, "public", pdfName);
+
+  // Track Table of Contents
+  const tocEntries = [];
+
   try {
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(workDir, true);
 
     const getAllFiles = (dir, files = []) => {
-      fs.readdirSync(dir).forEach((file) => {
-        const name = path.join(dir, file);
-        if (filters.some((f) => file.includes(f))) return;
-        if (fs.statSync(name).isDirectory()) getAllFiles(name, files);
-        else files.push(name);
-      });
+      const dirFiles = fs.readdirSync(dir);
+      for (const file of dirFiles) {
+        const fullPath = path.join(dir, file);
+        const relPath = path.relative(workDir, fullPath);
+
+        // 1. FILTER: Vendor/System Folders
+        if (
+          options.excludeVendor &&
+          (file === "node_modules" ||
+            file === ".git" ||
+            file === "dist" ||
+            file === "build" ||
+            file === ".next")
+        ) {
+          continue;
+        }
+
+        if (fs.statSync(fullPath).isDirectory()) {
+          getAllFiles(fullPath, files);
+        } else {
+          // 2. FILTER: File Types
+          const ext = path.extname(file).toLowerCase();
+
+          // Binary Filter
+          if (
+            options.excludeBin &&
+            [".exe", ".dll", ".so", ".bin"].includes(ext)
+          )
+            continue;
+          // Image Filter
+          if (
+            options.excludeImages &&
+            [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"].includes(
+              ext,
+            )
+          )
+            continue;
+          // Video/Audio Filter
+          if (
+            options.excludeMedia &&
+            [".mp4", ".mp3", ".mov", ".avi"].includes(ext)
+          )
+            continue;
+          // Archive Filter
+          if ([".zip", ".tar", ".gz", ".rar"].includes(ext)) continue;
+
+          files.push(fullPath);
+        }
+      }
       return files;
     };
 
     const allFiles = getAllFiles(workDir);
+    logger.info(`Job ${jobId}: Found ${allFiles.length} files to process.`);
 
-    // --- PASS 1: Generate Table of Contents HTML ---
-    let tocHtml = `<div id="toc" style="padding: 40px; font-family: sans-serif;">
-                        <h1 style="color: #58a6ff; border-bottom: 2px solid #30363d; padding-bottom: 10px;">Project Index</h1>
-                        <ul style="list-style: none; padding: 0;">`;
-
-    let contentHtml = "";
+    // Start PDF Stream
+    const doc = new PDFDocument({
+      autoFirstPage: false,
+      bufferPages: false,
+      margin: 50,
+    });
+    const writeStream = fs.createWriteStream(pdfPath);
+    doc.pipe(writeStream);
 
     for (let i = 0; i < allFiles.length; i++) {
-      const relPath = path.relative(workDir, allFiles[i]);
-      const fileId = `file_${i}`; // Unique ID for anchoring
-
-      // Add to Table of Contents
-      tocHtml += `<li style="margin: 8px 0;">
-                            <a href="#${fileId}" style="color: #58a6ff; text-decoration: none; font-family: monospace;">
-                                ${relPath}
-                            </a>
-                        </li>`;
+      const filePath = allFiles[i];
+      const relPath = path.relative(workDir, filePath);
 
       // Update Progress
-      jobs[jobId].percent = 10 + Math.floor((i / allFiles.length) * 60);
-      jobs[jobId].message = `Indexing & Highlighting: ${relPath}`;
+      if (i % 5 === 0) {
+        const pct = Math.floor((i / allFiles.length) * 90);
+        jobs[jobId].percent = pct;
+        jobs[jobId].message = `Processing: ${relPath}`;
+      }
 
-      // --- PASS 2: Content Generation ---
-      contentHtml += `<div class="divider" id="${fileId}">FILE: ${relPath}</div>`;
-      const content = fs.readFileSync(allFiles[i]);
-      const ext = path.extname(allFiles[i]).toLowerCase();
+      // --- ADD PAGE & ANCHOR ---
+      doc.addPage();
 
-      if ([".jpg", ".png", ".jpeg"].includes(ext)) {
-        contentHtml += `<img src="data:image/png;base64,${content.toString(
-          "base64"
-        )}" style="max-width:100%"/>`;
-      } else if (ext === ".md") {
-        contentHtml += `<div class="markdown-body">${marked(
-          content.toString("utf8")
-        )}</div>`;
-      } else {
-        try {
-          const highlighted = hljs.highlightAuto(
-            content.toString("utf8")
-          ).value;
-          contentHtml += `<pre><code>${highlighted}</code></pre>`;
-        } catch (e) {
-          contentHtml += `<pre><code>${content.toString("utf8")}</code></pre>`;
+      // Create a unique destination ID for links
+      const destId = `file_${i}`;
+      doc.addNamedDestination(destId);
+
+      // Save for Index
+      tocEntries.push({ name: relPath, dest: destId });
+
+      // Header
+      doc
+        .fontSize(12)
+        .fillColor("#0052cc")
+        .font("Courier-Bold")
+        .text(`FILE: ${relPath}`, { underline: true });
+      doc.moveDown(0.5);
+
+      try {
+        const ext = path.extname(filePath).toLowerCase();
+
+        // Handle Images specially if not excluded
+        if ([".png", ".jpg", ".jpeg"].includes(ext)) {
+          try {
+            doc.image(filePath, { fit: [500, 400], align: "center" });
+          } catch (imgErr) {
+            doc.fillColor("red").text(`[Image Corrupt or Unsupported]`);
+          }
+        } else {
+          // Handle Text/Code
+          // Cap file read at 100KB for memory safety
+          const content = fs.readFileSync(filePath, "utf8").slice(0, 100000);
+          // We strip non-printable chars to avoid PDFKit crash
+          const safeContent = content.replace(
+            /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
+            "",
+          );
+
+          doc.fontSize(10).fillColor("black").font("Courier").text(safeContent);
         }
+      } catch (readErr) {
+        doc.fillColor("red").text(`[Error reading file: ${readErr.message}]`);
+      }
+
+      // Memory cleanup hint
+      if (global.gc && i % 20 === 0) global.gc();
+    }
+
+    // --- GENERATE CLICKABLE INDEX AT END ---
+    if (tocEntries.length > 0) {
+      jobs[jobId].message = "Generating Searchable Index...";
+      doc.addPage();
+      doc
+        .fontSize(18)
+        .fillColor("black")
+        .font("Helvetica-Bold")
+        .text("INDEX / TABLE OF CONTENTS", { align: "center" });
+      doc.moveDown();
+
+      doc.fontSize(10).font("Courier");
+
+      for (const entry of tocEntries) {
+        doc.fillColor("#0052cc").text(entry.name, {
+          link: entry.dest, // Internal Link
+          underline: false,
+        });
       }
     }
 
-    tocHtml += `</ul></div>`;
+    doc.end();
+    await new Promise((resolve) => writeStream.on("finish", resolve));
 
-    const finalHtml = `<html><head><style>
-            body { font-family: -apple-system, sans-serif; background: white; color: #1a1a1a; }
-            .divider { page-break-before: always; border-bottom: 2px solid #58a6ff; margin: 30px 0; padding-bottom: 10px; font-weight: bold; color: #58a6ff; font-family: monospace; }
-            pre { background: #0d1117; color: #c9d1d9; padding: 15px; border-radius: 5px; font-size: 11px; white-space: pre-wrap; overflow: hidden; }
-            .markdown-body { line-height: 1.6; padding: 10px; }
-            a { text-decoration: none; }
-        </style><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css"></head>
-        <body>${tocHtml}${contentHtml}</body></html>`;
-
-    // PDF Generation logic (Infinite timeout settings as before)
-    jobs[jobId].message = "Finalizing PDF Layout...";
-    const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    });
-    const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(0);
-    await page.setContent(finalHtml, { waitUntil: "networkidle0", timeout: 0 });
-
-    const pdfName = `Zenith_Export_${jobId}.pdf`;
-    const pdfPath = path.join(__dirname, "public", pdfName);
-    await page.pdf({
-      path: pdfPath,
-      format: "A4",
-      printBackground: true,
-      timeout: 0,
-    });
-    await browser.close();
+    // Cleanup
+    await fs.remove(workDir);
 
     jobs[jobId].status = "completed";
-    setTimeout(() => {
-      const filePath = path.join(__dirname, "public", pdfName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted expired PDF: ${pdfName}`);
-      }
-      delete jobs[jobId];
-    }, 30 * 60 * 1000); // 30 Minutes
     jobs[jobId].percent = 100;
     jobs[jobId].downloadUrl = `/${pdfName}`;
-  } catch (e) {
-    console.error(e);
+    jobs[jobId].message = "Conversion Complete! Downloading...";
+
+    logger.info(`Job ${jobId} completed successfully.`);
+
+    // Auto-delete PDF after 15 mins
+    setTimeout(
+      () => {
+        if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+      },
+      15 * 60 * 1000,
+    );
+  } catch (error) {
+    logger.error(`Job ${jobId} failed: ${error.message}`);
     jobs[jobId].status = "failed";
-    jobs[jobId].message = "Error: " + e.message;
-  } finally {
-    await fs.remove(workDir);
-    await fs.remove(zipPath);
+    jobs[jobId].message = "Error: " + error.message;
+    await fs.remove(workDir); // Ensure cleanup on fail
   }
 }
 
-app.listen(3000, () => console.log("Zenith V3 Engine running on port 3000"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  logger.info(`Zenith V4 Enterprise running on port ${PORT}`),
+);

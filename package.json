@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node --expose-gc --max-old-space-size=350 --gc-interval=100 app.js",
     "start-min": "node --max-old-space-size=4096 app.js",
     "start-max": "node --max-old-space-size=8192 app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -20,6 +20,7 @@
     "marked": "^4.3.0",
     "multer": "^2.0.2",
     "pdf-lib": "^1.17.1",
-    "puppeteer": "^24.34.0"
+    "pdfkit": "^0.17.2",
+    "winston": "^3.19.0"
   }
 }
