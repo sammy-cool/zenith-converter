@@ -3,27 +3,23 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
-const winston = require("winston"); // Enterprise Logger
+const winston = require("winston");
 const PDFDocument = require("pdfkit");
+const { PDFDocument: PDFLibDoc } = require("pdf-lib");
 
-// --- 1. ENTERPRISE LOGGER SETUP ---
+// --- 1. ENTERPRISE LOGGER ---
 const logger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.json(),
+    winston.format.printf(
+      ({ timestamp, level, message }) =>
+        `[${timestamp}] ${level.toUpperCase()}: ${message}`,
+    ),
   ),
   transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple(),
-      ),
-    }),
-    new winston.transports.File({
-      filename: "zenith-error.log",
-      level: "error",
-    }),
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: "zenith.log" }),
   ],
 });
 
@@ -35,18 +31,17 @@ app.use(express.json());
 
 const jobs = {};
 
-// SSE Endpoint for Real-time Progress
+// SSE Endpoint
 app.get("/progress/:jobId", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-
-  const checkProgress = setInterval(() => {
+  const checkInterval = setInterval(() => {
     const job = jobs[req.params.jobId];
     if (job) {
       res.write(`data: ${JSON.stringify(job)}\n\n`);
       if (job.status === "completed" || job.status === "failed") {
-        clearInterval(checkProgress);
+        clearInterval(checkInterval);
         res.end();
       }
     }
@@ -57,219 +52,200 @@ app.get("/progress/:jobId", (req, res) => {
 app.post("/convert", upload.single("zipfile"), async (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded");
 
-  const zipPath = req.file.path;
   const jobId = Date.now().toString();
+  const zipPath = req.file.path;
 
-  // Parse options sent from Frontend
-  let options = {};
-  try {
-    options = JSON.parse(req.body.options || "{}");
-  } catch (e) {
-    options = {};
+  // Parse dynamic exclusions sent from frontend
+  let exclusions = [];
+  if (req.body.exclusions) {
+    try {
+      exclusions = JSON.parse(req.body.exclusions);
+    } catch (e) {}
   }
 
-  logger.info(`Job ${jobId} started. Options: ${JSON.stringify(options)}`);
+  logger.info(`Job ${jobId} started. Exclusions: ${exclusions.join(", ")}`);
 
   jobs[jobId] = {
     status: "processing",
     percent: 0,
-    message: "Initializing Zenith Engine...",
-    downloadUrl: null,
+    message: "Initializing V5 Engine...",
   };
-
   res.json({ jobId });
 
-  // Start Background Process
-  processZip(jobId, zipPath, options);
+  processZipV5(jobId, zipPath, exclusions);
 });
 
-// --- 3. BACKGROUND WORKER ---
-async function processZip(jobId, zipPath, options) {
+// --- 3. V5 ENGINE (Stitching Architecture) ---
+async function processZipV5(jobId, zipPath, exclusions) {
   const workDir = path.join(__dirname, "temp_extracted", jobId);
-  const pdfName = `Zenith_Export_${jobId}.pdf`;
-  const pdfPath = path.join(__dirname, "public", pdfName);
+  const contentPdfPath = path.join(workDir, "content_temp.pdf");
+  const tocPdfPath = path.join(workDir, "toc_temp.pdf");
+  const finalPdfPath = path.join(
+    __dirname,
+    "public",
+    `Zenith_Export_${jobId}.pdf`,
+  );
 
-  // Track Table of Contents
-  const tocEntries = [];
+  // ToC Data Tracker
+  const tocData = []; // [{ title: "src/app.js", page: 5, destId: "loc_5" }]
 
   try {
+    // A. EXTRACT
+    jobs[jobId].message = "Extracting Archive...";
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(workDir, true);
 
-    const getAllFiles = (dir, files = []) => {
-      const dirFiles = fs.readdirSync(dir);
-      for (const file of dirFiles) {
+    // B. SCAN FILES
+    const getFiles = (dir) => {
+      let results = [];
+      const list = fs.readdirSync(dir);
+      for (const file of list) {
         const fullPath = path.join(dir, file);
-        const relPath = path.relative(workDir, fullPath);
+        const relPath = path.relative(workDir, fullPath).replace(/\\/g, "/"); // Normalize path
 
-        // 1. FILTER: Vendor/System Folders
-        if (
-          options.excludeVendor &&
-          (file === "node_modules" ||
-            file === ".git" ||
-            file === "dist" ||
-            file === "build" ||
-            file === ".next")
-        ) {
+        // CHECK EXCLUSIONS (Dynamic)
+        // 1. Check exact folder match (e.g., "node_modules")
+        if (exclusions.some((ex) => relPath.startsWith(ex) || relPath === ex))
           continue;
-        }
+
+        // 2. Check extension match (e.g., ".png")
+        const ext = path.extname(file).toLowerCase();
+        if (exclusions.includes(ext)) continue;
 
         if (fs.statSync(fullPath).isDirectory()) {
-          getAllFiles(fullPath, files);
+          results = results.concat(getFiles(fullPath));
         } else {
-          // 2. FILTER: File Types
-          const ext = path.extname(file).toLowerCase();
-
-          // Binary Filter
-          if (
-            options.excludeBin &&
-            [".exe", ".dll", ".so", ".bin"].includes(ext)
-          )
-            continue;
-          // Image Filter
-          if (
-            options.excludeImages &&
-            [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"].includes(
-              ext,
-            )
-          )
-            continue;
-          // Video/Audio Filter
-          if (
-            options.excludeMedia &&
-            [".mp4", ".mp3", ".mov", ".avi"].includes(ext)
-          )
-            continue;
-          // Archive Filter
-          if ([".zip", ".tar", ".gz", ".rar"].includes(ext)) continue;
-
-          files.push(fullPath);
+          results.push(fullPath);
         }
       }
-      return files;
+      return results;
     };
 
-    const allFiles = getAllFiles(workDir);
-    logger.info(`Job ${jobId}: Found ${allFiles.length} files to process.`);
+    const allFiles = getFiles(workDir);
 
-    // Start PDF Stream
-    const doc = new PDFDocument({
-      autoFirstPage: false,
-      bufferPages: false,
-      margin: 50,
-    });
-    const writeStream = fs.createWriteStream(pdfPath);
-    doc.pipe(writeStream);
+    // C. GENERATE CONTENT PDF (Streamed)
+    jobs[jobId].message = "Rendering Content...";
+    const doc = new PDFDocument({ autoFirstPage: false, margin: 40 });
+    const contentStream = fs.createWriteStream(contentPdfPath);
+    doc.pipe(contentStream);
+
+    let pageCounter = 0; // Track pages relative to content PDF
 
     for (let i = 0; i < allFiles.length; i++) {
       const filePath = allFiles[i];
-      const relPath = path.relative(workDir, filePath);
+      const relPath = path.relative(workDir, filePath).replace(/\\/g, "/");
+      const safeId = `dest_${i}`; // Stable Anchor ID
 
-      // Update Progress
-      if (i % 5 === 0) {
-        const pct = Math.floor((i / allFiles.length) * 90);
-        jobs[jobId].percent = pct;
-        jobs[jobId].message = `Processing: ${relPath}`;
-      }
-
-      // --- ADD PAGE & ANCHOR ---
       doc.addPage();
+      pageCounter++; // PDFKit adds page, we count it
 
-      // Create a unique destination ID for links
-      const destId = `file_${i}`;
-      doc.addNamedDestination(destId);
+      // Store ToC Entry (We will adjust page number later after merging)
+      tocData.push({ title: relPath, pageCount: pageCounter, id: safeId });
 
-      // Save for Index
-      tocEntries.push({ name: relPath, dest: destId });
+      // Add Destination Anchor
+      doc.addNamedDestination(safeId);
 
       // Header
       doc
         .fontSize(12)
-        .fillColor("#0052cc")
+        .fillColor("#58a6ff")
         .font("Courier-Bold")
         .text(`FILE: ${relPath}`, { underline: true });
       doc.moveDown(0.5);
 
+      // Read & Format Content
       try {
-        const ext = path.extname(filePath).toLowerCase();
+        const content = fs.readFileSync(filePath, "utf8").slice(0, 100000); // 100KB Cap
+        // Remove null bytes that crash PDFKit
+        const cleanContent = content.replace(/\u0000/g, "");
 
-        // Handle Images specially if not excluded
-        if ([".png", ".jpg", ".jpeg"].includes(ext)) {
-          try {
-            doc.image(filePath, { fit: [500, 400], align: "center" });
-          } catch (imgErr) {
-            doc.fillColor("red").text(`[Image Corrupt or Unsupported]`);
-          }
-        } else {
-          // Handle Text/Code
-          // Cap file read at 100KB for memory safety
-          const content = fs.readFileSync(filePath, "utf8").slice(0, 100000);
-          // We strip non-printable chars to avoid PDFKit crash
-          const safeContent = content.replace(
-            /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
-            "",
-          );
-
-          doc.fontSize(10).fillColor("black").font("Courier").text(safeContent);
-        }
-      } catch (readErr) {
-        doc.fillColor("red").text(`[Error reading file: ${readErr.message}]`);
+        doc
+          .fontSize(9)
+          .fillColor("#c9d1d9")
+          .font("Courier") // Dark Mode Text
+          .text(cleanContent);
+      } catch (e) {
+        doc.fillColor("red").text(`[Binary or Unreadable File]`);
       }
 
-      // Memory cleanup hint
-      if (global.gc && i % 20 === 0) global.gc();
-    }
-
-    // --- GENERATE CLICKABLE INDEX AT END ---
-    if (tocEntries.length > 0) {
-      jobs[jobId].message = "Generating Searchable Index...";
-      doc.addPage();
-      doc
-        .fontSize(18)
-        .fillColor("black")
-        .font("Helvetica-Bold")
-        .text("INDEX / TABLE OF CONTENTS", { align: "center" });
-      doc.moveDown();
-
-      doc.fontSize(10).font("Courier");
-
-      for (const entry of tocEntries) {
-        doc.fillColor("#0052cc").text(entry.name, {
-          link: entry.dest, // Internal Link
-          underline: false,
-        });
+      // Progress Update
+      if (i % 10 === 0) {
+        const p = Math.floor((i / allFiles.length) * 70);
+        jobs[jobId].percent = p;
+        jobs[jobId].message = `Processing: ${relPath}`;
+        if (global.gc) global.gc();
       }
     }
-
     doc.end();
-    await new Promise((resolve) => writeStream.on("finish", resolve));
+    await new Promise((r) => contentStream.on("finish", r));
+
+    // D. GENERATE INDEX PDF
+    jobs[jobId].message = "Generating Index...";
+    const tocDoc = new PDFDocument({ margin: 40 });
+    const tocStream = fs.createWriteStream(tocPdfPath);
+    tocDoc.pipe(tocStream);
+
+    tocDoc
+      .fontSize(18)
+      .fillColor("black")
+      .font("Helvetica-Bold")
+      .text("INDEX", { align: "center" });
+    tocDoc.moveDown();
+
+    // Calculate Page Offset. ToC usually takes 1-2 pages.
+    // We can't know exactly, but PDF-Lib handles merging beautifully.
+    // For clickable links to work across docs, we rely on Named Destinations.
+
+    tocDoc.fontSize(10).font("Helvetica");
+
+    tocData.forEach((entry, idx) => {
+      // Link to the Named Destination we created in Content PDF
+      tocDoc.fillColor("#0052cc").text(entry.title, {
+        link: entry.id, // Links to "dest_X"
+        underline: false,
+      });
+    });
+
+    tocDoc.end();
+    await new Promise((r) => tocStream.on("finish", r));
+
+    // E. STITCHING (The Magic Step)
+    jobs[jobId].message = "Stitching Final Document...";
+    const pdfDoc = await PDFLibDoc.create();
+
+    // Load ToC
+    const tocBytes = fs.readFileSync(tocPdfPath);
+    const tocPdf = await PDFLibDoc.load(tocBytes);
+    const tocPages = await pdfDoc.copyPages(tocPdf, tocPdf.getPageIndices());
+    tocPages.forEach((page) => pdfDoc.addPage(page));
+
+    // Load Content
+    const contentBytes = fs.readFileSync(contentPdfPath);
+    const contentPdf = await PDFLibDoc.load(contentBytes);
+    const contentPages = await pdfDoc.copyPages(
+      contentPdf,
+      contentPdf.getPageIndices(),
+    );
+    contentPages.forEach((page) => pdfDoc.addPage(page));
+
+    // Save
+    const pdfBytes = await pdfDoc.save();
+    fs.writeFileSync(finalPdfPath, pdfBytes);
 
     // Cleanup
     await fs.remove(workDir);
 
     jobs[jobId].status = "completed";
     jobs[jobId].percent = 100;
-    jobs[jobId].downloadUrl = `/${pdfName}`;
-    jobs[jobId].message = "Conversion Complete! Downloading...";
-
-    logger.info(`Job ${jobId} completed successfully.`);
-
-    // Auto-delete PDF after 15 mins
-    setTimeout(
-      () => {
-        if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-      },
-      15 * 60 * 1000,
-    );
+    jobs[jobId].downloadUrl = `/${path.basename(finalPdfPath)}`;
+    jobs[jobId].message = "Done! Index created on Page 1.";
   } catch (error) {
-    logger.error(`Job ${jobId} failed: ${error.message}`);
+    logger.error(error);
     jobs[jobId].status = "failed";
     jobs[jobId].message = "Error: " + error.message;
-    await fs.remove(workDir); // Ensure cleanup on fail
+    await fs.remove(workDir);
   }
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  logger.info(`Zenith V4 Enterprise running on port ${PORT}`),
-);
+app.listen(PORT, () => logger.info(`Zenith V5 running on ${PORT}`));
