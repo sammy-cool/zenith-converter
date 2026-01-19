@@ -6,4 +6,4 @@ COPY . .
 RUN mkdir -p uploads temp_extracted public
 EXPOSE 3000
 # Use --expose-gc for memory management
-CMD ["node", "--expose-gc", "app.js"]
+CMD ["node", "--expose-gc", "--max-old-space-size=4096", "app.js"]

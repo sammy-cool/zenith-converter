@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Zenith V5 Enterprise</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zenith V6 Enterprise</title>
     <link rel="icon" href="/favicon.svg" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -11,17 +12,19 @@
         --bg: #0d1117;
         --card: #161b22;
         --border: #30363d;
+        --text: #c9d1d9;
       }
       body {
         font-family: "Segoe UI", monospace;
         background: var(--bg);
-        color: #c9d1d9;
+        color: var(--text);
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
         margin: 0;
       }
+
       .card {
         background: var(--card);
         border: 1px solid var(--border);
@@ -30,34 +33,34 @@
         width: 600px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
       }
-
-      .header {
+      .logo-box {
         text-align: center;
         margin-bottom: 20px;
       }
-      .header img {
-        width: 150px;
+      .logo-box img {
+        width: 140px;
         filter: drop-shadow(0 0 10px rgba(88, 166, 255, 0.4));
       }
 
       .upload-zone {
-        border: 2px dashed #333;
+        border: 2px dashed #444;
         padding: 40px;
         text-align: center;
         border-radius: 8px;
         cursor: pointer;
         transition: 0.3s;
+        background: #0b0e11;
       }
       .upload-zone:hover {
         border-color: var(--primary);
         background: #1c1e24;
       }
 
-      /* Dynamic Filter Area */
+      /* Filter Section */
       #filterSection {
         display: none;
         margin-top: 20px;
-        animation: slideDown 0.4s;
+        animation: slideDown 0.4s ease;
       }
       @keyframes slideDown {
         from {
@@ -70,36 +73,42 @@
         }
       }
 
-      .filter-group {
+      .filter-container {
         background: #0b0d10;
         border: 1px solid #333;
         padding: 15px;
         border-radius: 6px;
-        margin-bottom: 10px;
-        max-height: 150px;
+        margin-bottom: 12px;
+        max-height: 180px;
         overflow-y: auto;
       }
       .filter-header {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--primary);
         font-weight: bold;
         margin-bottom: 8px;
         text-transform: uppercase;
+        letter-spacing: 1px;
       }
 
       .chk-item {
         display: inline-block;
-        width: 45%;
-        margin-bottom: 5px;
+        width: 48%;
+        margin-bottom: 6px;
         font-size: 13px;
+        cursor: pointer;
+      }
+      .chk-item:hover {
+        color: white;
       }
       .chk-item input {
         accent-color: var(--primary);
+        margin-right: 8px;
       }
 
       button {
         width: 100%;
-        padding: 15px;
+        padding: 14px;
         background: #238636;
         border: none;
         color: white;
@@ -107,29 +116,31 @@
         font-weight: bold;
         cursor: pointer;
         margin-top: 15px;
-        font-size: 16px;
+        font-size: 15px;
+        transition: 0.2s;
       }
-      button:disabled {
-        background: #21262d;
-        color: #555;
-        cursor: not-allowed;
+      button:hover {
+        background: #2ea043;
       }
       button.secondary {
         background: #30363d;
         margin-top: 10px;
       }
+      button.secondary:hover {
+        background: #444;
+      }
 
-      .progress-container {
-        margin-top: 20px;
+      .progress-box {
+        margin-top: 25px;
         display: none;
       }
-      .bar-bg {
+      .bar-outer {
         background: #333;
-        height: 10px;
-        border-radius: 5px;
+        height: 12px;
+        border-radius: 6px;
         overflow: hidden;
       }
-      .bar-fill {
+      .bar-inner {
         background: var(--primary);
         width: 0%;
         height: 100%;
@@ -137,67 +148,70 @@
       }
       .console {
         background: black;
-        padding: 10px;
+        padding: 12px;
         font-size: 11px;
         color: #0f0;
-        margin-top: 10px;
-        height: 100px;
+        margin-top: 12px;
+        height: 120px;
         overflow-y: auto;
         border-radius: 4px;
         border: 1px solid #333;
+        font-family: "Consolas", monospace;
       }
 
-      #finalAction {
+      #finalSection {
         display: none;
-        margin-top: 15px;
+        margin-top: 20px;
+        text-align: center;
       }
     </style>
   </head>
   <body>
     <div class="card">
-      <div class="header">
+      <div class="logo-box">
         <img src="/logo.avif" onerror="this.style.display = 'none'" />
-        <h2 style="color: white; margin: 10px 0">Zenith V5 Enterprise</h2>
-        <p style="font-size: 12px; color: #888">
-          Dynamic Analysis & Smart Indexing
+        <h2 style="color: white; margin: 10px 0">Zenith V6 Enterprise</h2>
+        <p style="font-size: 13px; color: #888">
+          Smart Indexing & Dynamic Analysis
         </p>
       </div>
 
-      <div id="step1">
+      <div id="uploadScreen">
         <div
           class="upload-zone"
           onclick="document.getElementById('fileIn').click()"
         >
-          <div id="uploadText">📂 Click to Select Project ZIP</div>
+          <div id="uploadText">📂 Click to Analyze ZIP File</div>
           <input type="file" id="fileIn" hidden accept=".zip" />
         </div>
       </div>
 
       <div id="filterSection">
-        <p style="font-size: 13px; text-align: center">
-          Analyzing structure... Uncheck items to <b>EXCLUDE</b> them.
+        <p style="font-size: 13px; color: #ccc; text-align: center">
+          Analysis Complete. Uncheck items to <b>EXCLUDE</b> them.
         </p>
 
-        <div class="filter-header">Found File Types</div>
-        <div class="filter-group" id="extList"></div>
+        <div class="filter-header">Detected File Types</div>
+        <div class="filter-container" id="extList"></div>
 
-        <div class="filter-header">Found Root Folders</div>
-        <div class="filter-group" id="folderList"></div>
+        <div class="filter-header">Detected Root Folders</div>
+        <div class="filter-container" id="folderList"></div>
 
         <button id="convertBtn" onclick="startConversion()">
-          Genererate PDF Report
+          Generate PDF Report
         </button>
-        <button class="secondary" onclick="location.reload()">Cancel</button>
+        <button class="secondary" onclick="resetUI()">Cancel & Reset</button>
       </div>
 
-      <div class="progress-container" id="step3">
-        <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
+      <div class="progress-box" id="progressScreen">
+        <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
         <div
           style="
             display: flex;
             justify-content: space-between;
             font-size: 12px;
             margin-top: 5px;
+            color: #aaa;
           "
         >
           <span id="statusTxt">Initializing...</span>
@@ -206,11 +220,11 @@
         <div class="console" id="consoleLog"></div>
       </div>
 
-      <div id="finalAction">
+      <div id="finalSection">
         <a id="dlLink" href="#" download>
           <button>Download Report (Index on Pg 1)</button>
         </a>
-        <button class="secondary" onclick="location.reload()">
+        <button class="secondary" onclick="resetUI()">
           Process Another File
         </button>
       </div>
@@ -221,7 +235,7 @@
       let foundExtensions = new Set();
       let foundFolders = new Set();
 
-      // 1. Handle File Selection & Client-Side Scan
+      // --- PHASE 1: CLIENT-SIDE ANALYSIS ---
       document
         .getElementById("fileIn")
         .addEventListener("change", async function (e) {
@@ -229,74 +243,98 @@
           zipFile = this.files[0];
 
           document.getElementById("uploadText").innerText =
-            "Analyzing: " + zipFile.name + "...";
+            "Scanning Structure: " + zipFile.name + "...";
 
-          // Use JSZip to read structure WITHOUT uploading
           try {
             const zip = await JSZip.loadAsync(zipFile);
             foundExtensions.clear();
             foundFolders.clear();
 
             zip.forEach((relativePath, zipEntry) => {
-              if (zipEntry.dir) {
-                // Get top-level folders only
-                const rootFolder = relativePath.split("/")[0];
-                if (rootFolder) foundFolders.add(rootFolder);
-              } else {
-                // Get Extensions
-                const ext = relativePath.split(".").pop();
-                if (ext && ext.length < 5)
-                  foundExtensions.add("." + ext.toLowerCase());
+              const parts = relativePath.split("/");
+
+              // Identify Root Folders
+              if (parts.length > 1 || zipEntry.dir) {
+                if (parts[0] && parts[0] !== "." && parts[0] !== "__MACOSX")
+                  foundFolders.add(parts[0]);
+              }
+
+              // Identify Extensions
+              if (!zipEntry.dir) {
+                const filename = parts[parts.length - 1];
+                const extParts = filename.split(".");
+                if (extParts.length > 1) {
+                  const ext = "." + extParts.pop().toLowerCase();
+                  if (ext.length < 7) foundExtensions.add(ext);
+                }
               }
             });
 
             renderFilters();
-            document.getElementById("step1").style.display = "none";
+            document.getElementById("uploadScreen").style.display = "none";
             document.getElementById("filterSection").style.display = "block";
           } catch (err) {
             alert("Error reading ZIP: " + err.message);
+            resetUI();
           }
         });
 
-      // 2. Render Checkboxes
       function renderFilters() {
         const extDiv = document.getElementById("extList");
         const folderDiv = document.getElementById("folderList");
+        extDiv.innerHTML = "";
+        folderDiv.innerHTML = "";
 
-        // Render Extensions
+        // Auto-Check logic: Uncheck binaries/images by default for cleaner PDF
         foundExtensions.forEach((ext) => {
-          const isMedia = [".png", ".jpg", ".mp4", ".exe"].includes(ext);
+          const isMedia = [
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".mp4",
+            ".exe",
+            ".dll",
+            ".zip",
+          ].includes(ext);
+          const isChecked = !isMedia ? "checked" : "";
           extDiv.innerHTML += `
                 <label class="chk-item">
-                    <input type="checkbox" class="filter-ext" value="${ext}" ${isMedia ? "" : "checked"}> ${ext}
+                    <input type="checkbox" class="filter-ext" value="${ext}" ${isChecked}> ${ext}
                 </label>`;
         });
 
-        // Render Folders
+        // Auto-Check logic: Uncheck system folders
         foundFolders.forEach((folder) => {
-          const isJunk = ["node_modules", ".git", "dist", "build"].includes(
-            folder,
-          );
+          const isJunk = [
+            "node_modules",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+            "coverage",
+          ].includes(folder);
+          const isChecked = !isJunk ? "checked" : "";
           folderDiv.innerHTML += `
                 <label class="chk-item">
-                    <input type="checkbox" class="filter-folder" value="${folder}" ${isJunk ? "" : "checked"}> /${folder}
+                    <input type="checkbox" class="filter-folder" value="${folder}" ${isChecked}> /${folder}
                 </label>`;
         });
       }
 
-      // 3. Start Conversion
+      // --- PHASE 2: CONVERSION ---
       async function startConversion() {
         document.getElementById("filterSection").style.display = "none";
-        document.getElementById("step3").style.display = "block";
+        document.getElementById("progressScreen").style.display = "block";
 
-        // Gather Exclusions (Items UNCHECKED by user)
-        const exclusions = [];
+        // Gather what to EXCLUDE (Unchecked items)
+        const exclusions = { extensions: [], folders: [] };
 
         document.querySelectorAll(".filter-ext").forEach((cb) => {
-          if (!cb.checked) exclusions.push(cb.value);
+          if (!cb.checked) exclusions.extensions.push(cb.value);
         });
         document.querySelectorAll(".filter-folder").forEach((cb) => {
-          if (!cb.checked) exclusions.push(cb.value);
+          if (!cb.checked) exclusions.folders.push(cb.value);
         });
 
         const fd = new FormData();
@@ -305,33 +343,58 @@
 
         try {
           const res = await fetch("/convert", { method: "POST", body: fd });
+          if (!res.ok) throw new Error("Server Error");
+
           const { jobId } = await res.json();
 
-          // Start SSE
+          // SSE Listener
           const es = new EventSource(`/progress/${jobId}`);
           es.onmessage = (e) => {
             const d = JSON.parse(e.data);
+
             document.getElementById("bar").style.width = d.percent + "%";
             document.getElementById("pctTxt").innerText = d.percent + "%";
             document.getElementById("statusTxt").innerText =
-              d.status === "processing" ? "Engine Running..." : "Done";
+              d.status === "processing" ? "Engine Running..." : "Complete";
 
-            const log = document.createElement("div");
-            log.innerText = "> " + d.message;
-            const c = document.getElementById("consoleLog");
-            c.appendChild(log);
-            c.scrollTop = c.scrollHeight;
+            if (d.message) {
+              const log = document.createElement("div");
+              log.innerText = "> " + d.message;
+              const c = document.getElementById("consoleLog");
+              c.appendChild(log);
+              c.scrollTop = c.scrollHeight;
+            }
 
             if (d.status === "completed") {
               es.close();
-              document.getElementById("step3").style.display = "none";
-              document.getElementById("finalAction").style.display = "block";
+              document.getElementById("progressScreen").style.display = "none";
+              document.getElementById("finalSection").style.display = "block";
               document.getElementById("dlLink").href = d.downloadUrl;
+            }
+            if (d.status === "failed") {
+              es.close();
+              alert(d.message);
+              resetUI();
             }
           };
         } catch (e) {
-          alert("Upload Error");
+          alert("Upload Failed: " + e.message);
+          resetUI();
         }
+      }
+
+      function resetUI() {
+        zipFile = null;
+        document.getElementById("fileIn").value = "";
+        document.getElementById("uploadText").innerText =
+          "📂 Click to Analyze ZIP File";
+
+        document.getElementById("uploadScreen").style.display = "block";
+        document.getElementById("filterSection").style.display = "none";
+        document.getElementById("progressScreen").style.display = "none";
+        document.getElementById("finalSection").style.display = "none";
+        document.getElementById("consoleLog").innerHTML = "";
+        document.getElementById("bar").style.width = "0%";
       }
     </script>
   </body>

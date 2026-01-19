@@ -5,7 +5,6 @@ const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
 const winston = require("winston");
 const PDFDocument = require("pdfkit");
-const { PDFDocument: PDFLibDoc } = require("pdf-lib");
 
 // --- 1. ENTERPRISE LOGGER ---
 const logger = winston.createLogger({
@@ -27,7 +26,7 @@ const app = express();
 const upload = multer({ dest: "uploads/" });
 
 app.use(express.static("public"));
-app.use(express.json());
+app.use(express.json()); // Essential for parsing JSON body
 
 const jobs = {};
 
@@ -55,39 +54,33 @@ app.post("/convert", upload.single("zipfile"), async (req, res) => {
   const jobId = Date.now().toString();
   const zipPath = req.file.path;
 
-  // Parse dynamic exclusions sent from frontend
-  let exclusions = [];
-  if (req.body.exclusions) {
-    try {
-      exclusions = JSON.parse(req.body.exclusions);
-    } catch (e) {}
+  // Parse Exclusions (Received from Frontend Analysis)
+  let userExclusions = { extensions: [], folders: [] };
+  try {
+    if (req.body.exclusions) {
+      userExclusions = JSON.parse(req.body.exclusions);
+    }
+  } catch (e) {
+    logger.error("Failed to parse exclusions: " + e.message);
   }
 
-  logger.info(`Job ${jobId} started. Exclusions: ${exclusions.join(", ")}`);
-
+  logger.info(`Job ${jobId} started.`);
   jobs[jobId] = {
     status: "processing",
     percent: 0,
-    message: "Initializing V5 Engine...",
+    message: "Initializing Engine...",
   };
+
   res.json({ jobId });
 
-  processZipV5(jobId, zipPath, exclusions);
+  processZipV6(jobId, zipPath, userExclusions);
 });
 
-// --- 3. V5 ENGINE (Stitching Architecture) ---
-async function processZipV5(jobId, zipPath, exclusions) {
+// --- 3. V6 ENGINE (Buffered Pages Strategy) ---
+async function processZipV6(jobId, zipPath, exclusions) {
   const workDir = path.join(__dirname, "temp_extracted", jobId);
-  const contentPdfPath = path.join(workDir, "content_temp.pdf");
-  const tocPdfPath = path.join(workDir, "toc_temp.pdf");
-  const finalPdfPath = path.join(
-    __dirname,
-    "public",
-    `Zenith_Export_${jobId}.pdf`,
-  );
-
-  // ToC Data Tracker
-  const tocData = []; // [{ title: "src/app.js", page: 5, destId: "loc_5" }]
+  const pdfName = `Zenith_Export_${jobId}.pdf`;
+  const finalPdfPath = path.join(__dirname, "public", pdfName);
 
   try {
     // A. EXTRACT
@@ -101,16 +94,21 @@ async function processZipV5(jobId, zipPath, exclusions) {
       const list = fs.readdirSync(dir);
       for (const file of list) {
         const fullPath = path.join(dir, file);
-        const relPath = path.relative(workDir, fullPath).replace(/\\/g, "/"); // Normalize path
+        const relPath = path.relative(workDir, fullPath).replace(/\\/g, "/"); // Normalize
+        const parentFolder = relPath.split("/")[0]; // Top level folder
+        const ext = path.extname(file).toLowerCase();
 
-        // CHECK EXCLUSIONS (Dynamic)
-        // 1. Check exact folder match (e.g., "node_modules")
-        if (exclusions.some((ex) => relPath.startsWith(ex) || relPath === ex))
+        // --- DYNAMIC EXCLUSION LOGIC ---
+        // 1. Check Folder Exclusions (e.g., "node_modules")
+        if (
+          exclusions.folders.some(
+            (ex) => relPath.startsWith(ex) || relPath === ex,
+          )
+        )
           continue;
 
-        // 2. Check extension match (e.g., ".png")
-        const ext = path.extname(file).toLowerCase();
-        if (exclusions.includes(ext)) continue;
+        // 2. Check Extension Exclusions (e.g., ".png")
+        if (exclusions.extensions.includes(ext)) continue;
 
         if (fs.statSync(fullPath).isDirectory()) {
           results = results.concat(getFiles(fullPath));
@@ -122,125 +120,131 @@ async function processZipV5(jobId, zipPath, exclusions) {
     };
 
     const allFiles = getFiles(workDir);
+    logger.info(`Processing ${allFiles.length} files for Job ${jobId}`);
 
-    // C. GENERATE CONTENT PDF (Streamed)
-    jobs[jobId].message = "Rendering Content...";
-    const doc = new PDFDocument({ autoFirstPage: false, margin: 40 });
-    const contentStream = fs.createWriteStream(contentPdfPath);
-    doc.pipe(contentStream);
+    // C. GENERATE PDF
+    // 'bufferPages: true' allows us to go back and write the Index later
+    const doc = new PDFDocument({
+      autoFirstPage: false,
+      margin: 40,
+      bufferPages: true,
+    });
+    const writeStream = fs.createWriteStream(finalPdfPath);
+    doc.pipe(writeStream);
 
-    let pageCounter = 0; // Track pages relative to content PDF
+    // --- STEP 1: RESERVE PAGES FOR INDEX ---
+    // We guess 2 pages for Index. If it needs more, PDFKit handles flow, but we start content after.
+    jobs[jobId].message = "Analyzing Structure...";
+    doc.addPage();
+    const indexStartPage = 0; // 0-based index for PDFKit switching
+
+    // Write a temporary placeholder title
+    doc.fontSize(24).text("Generating Index...", { align: "center" });
+    doc.addPage(); // Buffer another page just in case
+
+    // --- STEP 2: RENDER CONTENT ---
+    const tocEntries = []; // Store { title, dest }
 
     for (let i = 0; i < allFiles.length; i++) {
       const filePath = allFiles[i];
       const relPath = path.relative(workDir, filePath).replace(/\\/g, "/");
-      const safeId = `dest_${i}`; // Stable Anchor ID
+      const safeId = `dest_${i}`; // Unique Internal Anchor ID
 
+      // Start new page for file
       doc.addPage();
-      pageCounter++; // PDFKit adds page, we count it
 
-      // Store ToC Entry (We will adjust page number later after merging)
-      tocData.push({ title: relPath, pageCount: pageCounter, id: safeId });
-
-      // Add Destination Anchor
+      // Add Anchor Point (This is where the link will jump to)
       doc.addNamedDestination(safeId);
 
-      // Header
-      doc
-        .fontSize(12)
-        .fillColor("#58a6ff")
-        .font("Courier-Bold")
-        .text(`FILE: ${relPath}`, { underline: true });
-      doc.moveDown(0.5);
+      // Save for Index
+      tocEntries.push({ title: relPath, dest: safeId });
 
-      // Read & Format Content
+      // HEADER (High Visibility Blue)
+      doc.rect(40, 40, 530, 25).fill("#e6f0ff").stroke(); // Light blue box
+      doc
+        .fillColor("#0052cc")
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text(relPath, 50, 48, { underline: false });
+
+      doc.moveDown(2);
+
+      // CONTENT (High Contrast Black)
       try {
-        const content = fs.readFileSync(filePath, "utf8").slice(0, 100000); // 100KB Cap
-        // Remove null bytes that crash PDFKit
-        const cleanContent = content.replace(/\u0000/g, "");
+        // Limit 100KB to prevent RAM crash
+        const content = fs.readFileSync(filePath, "utf8").slice(0, 100000);
+        // Remove null characters
+        const safeContent = content.replace(
+          /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
+          "",
+        );
 
         doc
-          .fontSize(9)
-          .fillColor("#c9d1d9")
-          .font("Courier") // Dark Mode Text
-          .text(cleanContent);
-      } catch (e) {
-        doc.fillColor("red").text(`[Binary or Unreadable File]`);
+          .fillColor("#000000")
+          .fontSize(10)
+          .font("Courier")
+          .text(safeContent, { width: 530 });
+      } catch (err) {
+        doc
+          .fillColor("#cc0000")
+          .text(`[Binary or Non-Text File: Skipped Content]`);
       }
 
-      // Progress Update
+      // Progress & GC
       if (i % 10 === 0) {
-        const p = Math.floor((i / allFiles.length) * 70);
+        const p = Math.floor((i / allFiles.length) * 80);
         jobs[jobId].percent = p;
-        jobs[jobId].message = `Processing: ${relPath}`;
+        jobs[jobId].message = `Rendering: ${relPath}`;
         if (global.gc) global.gc();
       }
     }
-    doc.end();
-    await new Promise((r) => contentStream.on("finish", r));
 
-    // D. GENERATE INDEX PDF
-    jobs[jobId].message = "Generating Index...";
-    const tocDoc = new PDFDocument({ margin: 40 });
-    const tocStream = fs.createWriteStream(tocPdfPath);
-    tocDoc.pipe(tocStream);
+    // --- STEP 3: GO BACK AND WRITE INDEX ---
+    jobs[jobId].message = "Writing Interactive Index...";
 
-    tocDoc
-      .fontSize(18)
-      .fillColor("black")
+    // Switch to the very first page we reserved
+    doc.switchToPage(indexStartPage);
+
+    // Clear the "Generating..." placeholder by drawing a white box over it
+    doc.rect(0, 0, 600, 800).fill("white");
+
+    doc
+      .fillColor("#000000")
+      .fontSize(20)
       .font("Helvetica-Bold")
-      .text("INDEX", { align: "center" });
-    tocDoc.moveDown();
+      .text("PROJECT INDEX", 50, 50, { align: "center" });
+    doc.moveDown();
 
-    // Calculate Page Offset. ToC usually takes 1-2 pages.
-    // We can't know exactly, but PDF-Lib handles merging beautifully.
-    // For clickable links to work across docs, we rely on Named Destinations.
+    doc.fontSize(10).font("Helvetica");
 
-    tocDoc.fontSize(10).font("Helvetica");
+    // Write Index Entries
+    for (const entry of tocEntries) {
+      // Check if we need a new page for the Index itself
+      if (doc.y > 700) {
+        doc.addPage();
+        doc.switchToPage(doc.bufferedPageRange().count - 1); // Switch to the new index page
+      }
 
-    tocData.forEach((entry, idx) => {
-      // Link to the Named Destination we created in Content PDF
-      tocDoc.fillColor("#0052cc").text(entry.title, {
-        link: entry.id, // Links to "dest_X"
-        underline: false,
+      doc.fillColor("#0052cc").text(entry.title, {
+        goTo: entry.dest, // <--- THE FIX: 'goTo' is for internal links, 'link' is for URLs
+        indent: 20,
+        underline: true,
       });
-    });
+      doc.moveDown(0.4);
+    }
 
-    tocDoc.end();
-    await new Promise((r) => tocStream.on("finish", r));
-
-    // E. STITCHING (The Magic Step)
-    jobs[jobId].message = "Stitching Final Document...";
-    const pdfDoc = await PDFLibDoc.create();
-
-    // Load ToC
-    const tocBytes = fs.readFileSync(tocPdfPath);
-    const tocPdf = await PDFLibDoc.load(tocBytes);
-    const tocPages = await pdfDoc.copyPages(tocPdf, tocPdf.getPageIndices());
-    tocPages.forEach((page) => pdfDoc.addPage(page));
-
-    // Load Content
-    const contentBytes = fs.readFileSync(contentPdfPath);
-    const contentPdf = await PDFLibDoc.load(contentBytes);
-    const contentPages = await pdfDoc.copyPages(
-      contentPdf,
-      contentPdf.getPageIndices(),
-    );
-    contentPages.forEach((page) => pdfDoc.addPage(page));
-
-    // Save
-    const pdfBytes = await pdfDoc.save();
-    fs.writeFileSync(finalPdfPath, pdfBytes);
+    doc.end();
+    await new Promise((resolve) => writeStream.on("finish", resolve));
 
     // Cleanup
     await fs.remove(workDir);
 
     jobs[jobId].status = "completed";
     jobs[jobId].percent = 100;
-    jobs[jobId].downloadUrl = `/${path.basename(finalPdfPath)}`;
-    jobs[jobId].message = "Done! Index created on Page 1.";
+    jobs[jobId].downloadUrl = `/${pdfName}`;
+    jobs[jobId].message = "Success! Index generated on Page 1.";
   } catch (error) {
-    logger.error(error);
+    logger.error(`Job ${jobId} failed: ${error.message}`);
     jobs[jobId].status = "failed";
     jobs[jobId].message = "Error: " + error.message;
     await fs.remove(workDir);
@@ -248,4 +252,4 @@ async function processZipV5(jobId, zipPath, exclusions) {
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => logger.info(`Zenith V5 running on ${PORT}`));
+app.listen(PORT, () => logger.info(`Zenith V6 Engine running on ${PORT}`));
