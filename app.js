@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
+const path = require("node:path");
 const fs = require("fs-extra");
 const AdmZip = require("adm-zip");
 const winston = require("winston");
@@ -42,6 +42,14 @@ app.get("/progress/:jobId", (req, res) => {
       if (job.status === "completed" || job.status === "failed") {
         clearInterval(checkInterval);
         res.end();
+
+        // FIX: Clear memory after 10 minutes to allow user download, then delete
+        setTimeout(() => {
+          if (jobs[req.params.jobId]) {
+            delete jobs[req.params.jobId];
+            console.log(`[Memory] Cleared data for Job ${req.params.jobId}`);
+          }
+        }, 600000); // 10 minutes
       }
     }
   }, 500);
@@ -171,23 +179,39 @@ async function processZipV6(jobId, zipPath, exclusions) {
 
       // CONTENT (High Contrast Black)
       try {
-        // Limit 100KB to prevent RAM crash
-        const content = fs.readFileSync(filePath, "utf8").slice(0, 100000);
-        // Remove null characters
-        const safeContent = content.replace(
-          /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
-          "",
-        );
+        const buffer = fs.readFileSync(filePath);
 
-        doc
-          .fillColor("#000000")
-          .fontSize(10)
-          .font("Courier")
-          .text(safeContent, { width: 530 });
+        // 2. Check for binary content (Null Bytes)
+        // We check the first 1000 bytes. If we find a null byte (0), it's likely binary.
+        const isBinary = buffer.slice(0, 1000).includes(0);
+        if (isBinary) {
+          doc
+            .fillColor("#cc0000")
+            .fontSize(10)
+            .font("Helvetica-Oblique")
+            .text(
+              "[Binary File Detected: Content Omitted to prevent corruption]",
+              { width: 530 },
+            );
+        } else {
+          // 3. It's safe text, convert to string
+          // Limit to 100KB to save RAM
+          const content = buffer.toString("utf8").slice(0, 100000);
+
+          // Sanitize control characters just in case
+          const safeContent = content.replace(
+            /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
+            "",
+          );
+
+          doc
+            .fillColor("#000000")
+            .fontSize(10)
+            .font("Courier")
+            .text(safeContent, { width: 530 });
+        }
       } catch (err) {
-        doc
-          .fillColor("#cc0000")
-          .text(`[Binary or Non-Text File: Skipped Content]`);
+        doc.fillColor("#cc0000").text(`[Error reading file: ${err.message}]`);
       }
 
       // Progress & GC
@@ -242,12 +266,24 @@ async function processZipV6(jobId, zipPath, exclusions) {
     jobs[jobId].status = "completed";
     jobs[jobId].percent = 100;
     jobs[jobId].downloadUrl = `/${pdfName}`;
-    jobs[jobId].message = "Success! Index generated on Page 1.";
+    jobs[jobId].message = "PDF Generated Success! Index generated on Page 1.";
   } catch (error) {
     logger.error(`Job ${jobId} failed: ${error.message}`);
     jobs[jobId].status = "failed";
     jobs[jobId].message = "Error: " + error.message;
-    await fs.remove(workDir);
+  } finally {
+    //Cleanup BOTH the extracted folder AND the original ZIP file
+    try {
+      if (await fs.pathExists(workDir)) {
+        await fs.remove(workDir);
+      }
+      if (await fs.pathExists(zipPath)) {
+        await fs.unlink(zipPath); // Deletes the uploaded ZIP
+        logger.info(`[Cleanup] Deleted temp files for Job ${jobId}`);
+      }
+    } catch (error) {
+      logger.error(`Cleanup failed for Job ${jobId}: ${error.message}`);
+    }
   }
 }
 
