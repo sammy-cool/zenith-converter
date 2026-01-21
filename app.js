@@ -184,38 +184,70 @@ async function processZipV6(jobId, zipPath, exclusions) {
 
       doc.moveDown(2);
 
-      // CONTENT (High Contrast Black)
+      // CONTENT (High Contrast Black with Line Numbers)
       try {
+        // 1. Read as Buffer to check for binary (Priority Fix #2)
         const buffer = fs.readFileSync(filePath);
-
-        // 2. Check for binary content (Null Bytes)
-        // We check the first 1000 bytes. If we find a null byte (0), it's likely binary.
         const isBinary = buffer.slice(0, 1000).includes(0);
+
         if (isBinary) {
           doc
             .fillColor("#cc0000")
-            .fontSize(10)
             .font("Helvetica-Oblique")
-            .text(
-              "[Binary File Detected: Content Omitted to prevent corruption]",
-              { width: 530 },
-            );
+            .text("[Binary File: Content Omitted]", { width: 530 });
+          doc.moveDown();
         } else {
-          // 3. It's safe text, convert to string
-          // Limit to 100KB to save RAM
-          const content = buffer.toString("utf8").slice(0, 100000);
-
-          // Sanitize control characters just in case
-          const safeContent = content.replace(
+          // 2. Prepare Code Content
+          let content = buffer.toString("utf8").slice(0, 100000);
+          // Remove control characters that break PDFKit
+          content = content.replace(
             /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
             "",
           );
 
-          doc
-            .fillColor("#000000")
-            .fontSize(10)
-            .font("Courier")
-            .text(safeContent, { width: 530 });
+          const lines = content.split(/\r?\n/);
+          doc.fontSize(9).font("Courier"); // Smaller font for code
+
+          // 3. Render Loop
+          for (let j = 0; j < lines.length; j++) {
+            const line = lines[j];
+            const lineNum = (j + 1).toString();
+
+            // Calculate height of this line (in case code wraps)
+            const codeWidth = 480;
+            const lineHeight = doc.heightOfString(line, { width: codeWidth });
+            const rowHeight = Math.max(lineHeight, 12); // Minimum height
+
+            // Check for Page Break
+            if (doc.y + rowHeight > doc.page.height - 50) {
+              doc.addPage();
+            }
+
+            const currentY = doc.y;
+
+            // Draw Gutter (Gray Sidebar)
+            doc
+              .rect(40, currentY, 35, rowHeight) // x=40, width=35
+              .fillColor("#f5f5f5")
+              .fill();
+
+            // Draw Line Number
+            doc.fillColor("#999999").text(lineNum, 42, currentY + 2, {
+              width: 30,
+              align: "right",
+              lineBreak: false, // Numbers shouldn't wrap
+            });
+
+            // Draw Code Line
+            doc.fillColor("#000000").text(line, 85, currentY + 2, {
+              width: codeWidth,
+              align: "left",
+            });
+
+            // Explicitly move down for next loop iteration
+            // (We reset X to margin because PDFKit remembers the last text X)
+            doc.x = 40;
+          }
         }
       } catch (err) {
         doc.fillColor("#cc0000").text(`[Error reading file: ${err.message}]`);
