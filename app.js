@@ -161,11 +161,18 @@ async function processZipV6(jobId, zipPath, exclusions) {
       // Start new page for file
       doc.addPage();
 
-      // Add Anchor Point (This is where the link will jump to)
+      // [ENTERPRISE FIX] Capture current page number
+      const currentPageNum = doc.bufferedPageRange().count;
+
+      // Add Anchor Point
       doc.addNamedDestination(safeId);
 
-      // Save for Index
-      tocEntries.push({ title: relPath, dest: safeId });
+      // Save title, destination AND page number
+      tocEntries.push({
+        title: relPath,
+        dest: safeId,
+        page: currentPageNum,
+      });
 
       // HEADER (High Visibility Blue)
       doc.rect(40, 40, 530, 25).fill("#e6f0ff").stroke(); // Light blue box
@@ -249,11 +256,21 @@ async function processZipV6(jobId, zipPath, exclusions) {
         doc.switchToPage(doc.bufferedPageRange().count - 1); // Switch to the new index page
       }
 
+      // 1. Write the File Name (Left Aligned)
       doc.fillColor("#0052cc").text(entry.title, {
-        goTo: entry.dest, // <--- THE FIX: 'goTo' is for internal links, 'link' is for URLs
+        goTo: entry.dest,
         indent: 20,
+        width: 450, // Leave room for the page number
+        continued: true, // Keep cursor on the same line
         underline: true,
       });
+
+      // 2. Write the Page Number (Right Aligned)
+      doc.fillColor("#000000").text(entry.page.toString(), {
+        align: "right",
+        underline: false,
+      });
+
       doc.moveDown(0.4);
     }
 
