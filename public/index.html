@@ -9,15 +9,20 @@
     <style>
       :root {
         --primary: #58a6ff;
+        --success: #238636;
         --bg: #0d1117;
-        --card: #161b22;
+        --card-bg: #161b22;
         --border: #30363d;
-        --text: #c9d1d9;
+        --text-main: #c9d1d9;
+        --text-muted: #8b949e;
       }
+
       body {
-        font-family: "Segoe UI", monospace;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+          sans-serif;
         background: var(--bg);
-        color: var(--text);
+        color: var(--text-main);
         display: flex;
         justify-content: center;
         align-items: center;
@@ -26,143 +31,224 @@
       }
 
       .card {
-        background: var(--card);
+        background: var(--card-bg);
         border: 1px solid var(--border);
-        padding: 30px;
+        padding: 32px;
         border-radius: 12px;
         width: 600px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-      }
-      .logo-box {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-      .logo-box img {
-        width: 140px;
-        filter: drop-shadow(0 0 10px rgba(88, 166, 255, 0.4));
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
       }
 
+      /* Logo & Header */
+      .logo-box {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      .logo-box img {
+        width: 80px;
+        margin-bottom: 12px;
+      }
+      .logo-box h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+      .logo-box p {
+        color: var(--text-muted);
+        font-size: 14px;
+        margin-top: 8px;
+      }
+
+      /* Upload Zone */
       .upload-zone {
-        border: 2px dashed #444;
+        border: 2px dashed var(--border);
         padding: 40px;
         text-align: center;
         border-radius: 8px;
         cursor: pointer;
-        transition: 0.3s;
-        background: #0b0e11;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.02);
       }
       .upload-zone:hover {
         border-color: var(--primary);
-        background: #1c1e24;
+        background: rgba(88, 166, 255, 0.05);
       }
 
       /* Filter Section */
       #filterSection {
         display: none;
         margin-top: 20px;
-        animation: slideDown 0.4s ease;
-      }
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .filter-container {
-        background: #0b0d10;
-        border: 1px solid #333;
-        padding: 15px;
-        border-radius: 6px;
-        margin-bottom: 12px;
-        max-height: 180px;
-        overflow-y: auto;
+        border-top: 1px solid var(--border);
+        padding-top: 20px;
       }
       .filter-header {
-        font-size: 11px;
-        color: var(--primary);
-        font-weight: bold;
-        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+      }
+
+      .filter-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        max-height: 150px;
+        overflow-y: auto;
+        margin-bottom: 20px;
       }
 
       .chk-item {
-        display: inline-block;
-        width: 48%;
-        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
         font-size: 13px;
         cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
       }
       .chk-item:hover {
-        color: white;
+        background: rgba(255, 255, 255, 0.05);
       }
       .chk-item input {
+        margin-right: 10px;
         accent-color: var(--primary);
-        margin-right: 8px;
       }
 
+      /* Buttons */
       button {
         width: 100%;
-        padding: 14px;
-        background: #238636;
+        padding: 12px;
+        background: var(--success);
         border: none;
         color: white;
         border-radius: 6px;
-        font-weight: bold;
+        font-weight: 600;
         cursor: pointer;
-        margin-top: 15px;
-        font-size: 15px;
+        font-size: 14px;
         transition: 0.2s;
       }
       button:hover {
-        background: #2ea043;
+        opacity: 0.9;
       }
       button.secondary {
-        background: #30363d;
-        margin-top: 10px;
+        background: var(--border);
+        margin-top: 12px;
       }
       button.secondary:hover {
         background: #444;
       }
 
+      /* ENTERPRISE PROGRESS UI */
       .progress-box {
-        margin-top: 25px;
-        display: none;
-      }
-      .bar-outer {
-        background: #333;
-        height: 12px;
-        border-radius: 6px;
-        overflow: hidden;
-      }
-      .bar-inner {
-        background: var(--primary);
-        width: 0%;
-        height: 100%;
-        transition: width 0.3s;
-      }
-      .console {
-        background: black;
-        padding: 12px;
-        font-size: 11px;
-        color: #0f0;
-        margin-top: 12px;
-        height: 120px;
-        overflow-y: auto;
-        border-radius: 4px;
-        border: 1px solid #333;
-        font-family: "Consolas", monospace;
-      }
-
-      #finalSection {
         display: none;
         margin-top: 20px;
+      }
+
+      /* Step Wizard */
+      .steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        position: relative;
+      }
+      .steps::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--border);
+        z-index: 0;
+      }
+      .step {
+        position: relative;
+        z-index: 1;
+        background: var(--card-bg);
+        padding: 0 10px;
         text-align: center;
+      }
+      .step-dot {
+        width: 20px;
+        height: 20px;
+        background: var(--border);
+        border-radius: 50%;
+        margin: 0 auto 5px;
+        transition: 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--card-bg);
+        font-weight: bold;
+      }
+      .step.active .step-dot {
+        background: var(--primary);
+        box-shadow: 0 0 10px rgba(88, 166, 255, 0.4);
+      }
+      .step.done .step-dot {
+        background: var(--success);
+      }
+      .step-label {
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+      .step.active .step-label {
+        color: var(--primary);
+        font-weight: bold;
+      }
+
+      /* Terminal Window */
+      .console-window {
+        background: #0d1117;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+      .console-header {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #21262d;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .red {
+        background: #ff5f56;
+      }
+      .yellow {
+        background: #ffbd2e;
+      }
+      .green {
+        background: #27c93f;
+      }
+
+      .console-logs {
+        height: 120px;
+        overflow-y: auto;
+        color: var(--text-muted);
+        scroll-behavior: smooth;
+      }
+      .log-line {
+        margin-bottom: 4px;
+        display: flex;
+      }
+      .log-time {
+        color: #58a6ff;
+        margin-right: 8px;
+        opacity: 0.7;
+      }
+      .log-msg {
+        color: #c9d1d9;
       }
     </style>
   </head>
@@ -208,20 +294,53 @@
       </div>
 
       <div class="progress-box" id="progressScreen">
-        <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
+        <div class="steps">
+          <div class="step" id="step1">
+            <div class="step-dot">1</div>
+            <div class="step-label">Extract</div>
+          </div>
+          <div class="step" id="step2">
+            <div class="step-dot">2</div>
+            <div class="step-label">Analyze</div>
+          </div>
+          <div class="step" id="step3">
+            <div class="step-dot">3</div>
+            <div class="step-label">Render</div>
+          </div>
+          <div class="step" id="step4">
+            <div class="step-dot">4</div>
+            <div class="step-label">Index</div>
+          </div>
+        </div>
+
+        <div class="console-window">
+          <div class="console-header">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+            <span style="margin-left: 10px; color: #8b949e"
+              >server-logs — node</span
+            >
+          </div>
+          <div class="console-logs" id="consoleLog">
+            <div class="log-line">
+              <span class="log-msg">> Establishing secure connection...</span>
+            </div>
+          </div>
+        </div>
+
         <div
           style="
             display: flex;
             justify-content: space-between;
+            margin-top: 10px;
             font-size: 12px;
-            margin-top: 5px;
-            color: #aaa;
+            color: #8b949e;
           "
         >
-          <span id="statusTxt">Initializing...</span>
+          <span id="statusTxt">Waiting for server...</span>
           <span id="pctTxt">0%</span>
         </div>
-        <div class="console" id="consoleLog"></div>
       </div>
 
       <div id="finalSection">
@@ -352,35 +471,76 @@
           const { jobId } = await res.json();
 
           // SSE Listener
+          // Inside async function startConversion() ...
+
           const es = new EventSource(`/progress/${jobId}`);
+          const consoleDiv = document.getElementById("consoleLog");
+          const steps = [1, 2, 3, 4].map((n) =>
+            document.getElementById(`step${n}`),
+          );
+
           es.onmessage = (e) => {
             const d = JSON.parse(e.data);
 
-            document.getElementById("bar").style.width = d.percent + "%";
+            // update percentage text
             document.getElementById("pctTxt").innerText = d.percent + "%";
-            document.getElementById("statusTxt").innerText =
-              d.status === "processing" ? "Engine Running..." : "Complete";
+            document.getElementById("statusTxt").innerText = d.message;
 
+            // SMART STEP LOGIC: Light up steps based on keywords in the message
+            if (d.message.includes("Extracting")) {
+              setActiveStep(0);
+            } else if (
+              d.message.includes("Structure") ||
+              d.message.includes("Scanning")
+            ) {
+              setActiveStep(1);
+            } else if (d.message.includes("Rendering")) {
+              setActiveStep(2);
+            } else if (d.message.includes("Index")) {
+              setActiveStep(3);
+            }
+
+            // Add colorful log entry
             if (d.message) {
-              const log = document.createElement("div");
-              log.innerText = "> " + d.message;
-              const c = document.getElementById("consoleLog");
-              c.appendChild(log);
-              c.scrollTop = c.scrollHeight;
+              const line = document.createElement("div");
+              line.className = "log-line";
+              const time = new Date().toLocaleTimeString("en-US", {
+                hour12: false,
+              });
+              line.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-msg">${d.message}</span>`;
+              consoleDiv.appendChild(line);
+              consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
 
             if (d.status === "completed") {
               es.close();
-              document.getElementById("progressScreen").style.display = "none";
-              document.getElementById("finalSection").style.display = "block";
-              document.getElementById("dlLink").href = d.downloadUrl;
+              steps.forEach((s) => s.classList.add("done")); // Mark all green
+              setTimeout(() => {
+                document.getElementById("progressScreen").style.display =
+                  "none";
+                document.getElementById("finalSection").style.display = "block";
+                document.getElementById("dlLink").href = d.downloadUrl;
+              }, 800);
             }
+
             if (d.status === "failed") {
               es.close();
-              alert(d.message);
+              alert("Conversion Failed: " + d.message);
               resetUI();
             }
           };
+
+          // Helper to handle visual state of dots
+          function setActiveStep(index) {
+            steps.forEach((step, i) => {
+              if (i < index) {
+                step.classList.remove("active");
+                step.classList.add("done");
+              } else if (i === index) {
+                step.classList.add("active");
+              }
+            });
+          }
         } catch (e) {
           alert("Upload Failed: " + e.message);
           resetUI();
