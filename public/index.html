@@ -16,11 +16,9 @@
         --text-main: #c9d1d9;
         --text-muted: #8b949e;
       }
-
       body {
         font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
-          sans-serif;
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
         background: var(--bg);
         color: var(--text-main);
         display: flex;
@@ -29,7 +27,6 @@
         min-height: 100vh;
         margin: 0;
       }
-
       .card {
         background: var(--card-bg);
         border: 1px solid var(--border);
@@ -38,8 +35,6 @@
         width: 600px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
       }
-
-      /* Logo & Header */
       .logo-box {
         text-align: center;
         margin-bottom: 24px;
@@ -58,8 +53,6 @@
         font-size: 14px;
         margin-top: 8px;
       }
-
-      /* Upload Zone */
       .upload-zone {
         border: 2px dashed var(--border);
         padding: 40px;
@@ -73,8 +66,6 @@
         border-color: var(--primary);
         background: rgba(88, 166, 255, 0.05);
       }
-
-      /* Filter Section */
       #filterSection {
         display: none;
         margin-top: 20px;
@@ -86,10 +77,8 @@
         color: var(--text-muted);
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
         margin-bottom: 10px;
       }
-
       .filter-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -98,14 +87,12 @@
         overflow-y: auto;
         margin-bottom: 20px;
       }
-
       .chk-item {
         display: flex;
         align-items: center;
         font-size: 13px;
         cursor: pointer;
         padding: 4px;
-        border-radius: 4px;
       }
       .chk-item:hover {
         background: rgba(255, 255, 255, 0.05);
@@ -114,8 +101,6 @@
         margin-right: 10px;
         accent-color: var(--primary);
       }
-
-      /* Buttons */
       button {
         width: 100%;
         padding: 12px;
@@ -125,8 +110,6 @@
         border-radius: 6px;
         font-weight: 600;
         cursor: pointer;
-        font-size: 14px;
-        transition: 0.2s;
       }
       button:hover {
         opacity: 0.9;
@@ -138,14 +121,10 @@
       button.secondary:hover {
         background: #444;
       }
-
-      /* ENTERPRISE PROGRESS UI */
       .progress-box {
         display: none;
         margin-top: 20px;
       }
-
-      /* Step Wizard */
       .steps {
         display: flex;
         justify-content: space-between;
@@ -175,7 +154,6 @@
         background: var(--border);
         border-radius: 50%;
         margin: 0 auto 5px;
-        transition: 0.3s;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -194,18 +172,11 @@
         font-size: 11px;
         color: var(--text-muted);
       }
-      .step.active .step-label {
-        color: var(--primary);
-        font-weight: bold;
-      }
-
-      /* Terminal Window */
       .console-window {
         background: #0d1117;
         border: 1px solid var(--border);
         border-radius: 6px;
-        font-family:
-          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-family: monospace;
         font-size: 12px;
         padding: 12px;
         margin-top: 15px;
@@ -231,7 +202,6 @@
       .green {
         background: #27c93f;
       }
-
       .console-logs {
         height: 120px;
         overflow-y: auto;
@@ -247,8 +217,10 @@
         margin-right: 8px;
         opacity: 0.7;
       }
-      .log-msg {
-        color: #c9d1d9;
+      #finalSection {
+        display: none;
+        margin-top: 20px;
+        text-align: center;
       }
     </style>
   </head>
@@ -257,42 +229,29 @@
       <div class="logo-box">
         <img
           src="/logo.avif"
-          alt="Zenith-Logo"
+          alt="zenith-logo"
           onerror="this.style.display = 'none'"
         />
-        <h2 style="color: white; margin: 10px 0">Zenith V6 Enterprise</h2>
-        <p style="font-size: 13px; color: #888">
-          Smart Indexing & Dynamic Analysis
-        </p>
+        <h2>Zenith Enterprise</h2>
+        <p>Smart Indexing & Dynamic Analysis</p>
       </div>
-
       <div id="uploadScreen">
         <div
           class="upload-zone"
           onclick="document.getElementById('fileIn').click()"
         >
-          <div id="uploadText">📂 Click to Analyze ZIP File</div>
+          <div id="uploadText">Click to Analyze ZIP File</div>
           <input type="file" id="fileIn" hidden accept=".zip" />
         </div>
       </div>
-
       <div id="filterSection">
-        <p style="font-size: 13px; color: #ccc; text-align: center">
-          Analysis Complete. Uncheck items to <b>EXCLUDE</b> them.
-        </p>
-
         <div class="filter-header">Detected File Types</div>
-        <div class="filter-container" id="extList"></div>
-
+        <div class="filter-grid" id="extList"></div>
         <div class="filter-header">Detected Root Folders</div>
-        <div class="filter-container" id="folderList"></div>
-
-        <button id="convertBtn" onclick="startConversion()">
-          Generate PDF Report
-        </button>
-        <button class="secondary" onclick="resetUI()">Cancel & Reset</button>
+        <div class="filter-grid" id="folderList"></div>
+        <button onclick="startConversion()">Generate PDF Report</button>
+        <button class="secondary" onclick="resetUI()">Cancel</button>
       </div>
-
       <div class="progress-box" id="progressScreen">
         <div class="steps">
           <div class="step" id="step1">
@@ -312,23 +271,14 @@
             <div class="step-label">Index</div>
           </div>
         </div>
-
         <div class="console-window">
           <div class="console-header">
             <div class="dot red"></div>
             <div class="dot yellow"></div>
             <div class="dot green"></div>
-            <span style="margin-left: 10px; color: #8b949e"
-              >server-logs — node</span
-            >
           </div>
-          <div class="console-logs" id="consoleLog">
-            <div class="log-line">
-              <span class="log-msg">> Establishing secure connection...</span>
-            </div>
-          </div>
+          <div class="console-logs" id="consoleLog"></div>
         </div>
-
         <div
           style="
             display: flex;
@@ -338,61 +288,44 @@
             color: #8b949e;
           "
         >
-          <span id="statusTxt">Waiting for server...</span>
-          <span id="pctTxt">0%</span>
+          <span id="statusTxt">Initializing...</span><span id="pctTxt">0%</span>
         </div>
       </div>
-
       <div id="finalSection">
-        <a id="dlLink" href="#" download>
-          <button>Download Report (Index on Pg 1)</button>
-        </a>
+        <a id="dlLink" href="#" download><button>Download Report</button></a>
         <button class="secondary" onclick="resetUI()">
           Process Another File
         </button>
       </div>
     </div>
-
     <script>
       let zipFile = null;
       let foundExtensions = new Set();
       let foundFolders = new Set();
 
-      // --- PHASE 1: CLIENT-SIDE ANALYSIS ---
       document
         .getElementById("fileIn")
         .addEventListener("change", async function (e) {
           if (!this.files[0]) return;
           zipFile = this.files[0];
-
           document.getElementById("uploadText").innerText =
-            "Scanning Structure: " + zipFile.name + "...";
-
+            "Scanning: " + zipFile.name + "...";
           try {
             const zip = await JSZip.loadAsync(zipFile);
             foundExtensions.clear();
             foundFolders.clear();
-
             zip.forEach((relativePath, zipEntry) => {
+              if (relativePath.startsWith("__MACOSX")) return;
               const parts = relativePath.split("/");
-
-              // Identify Root Folders
               if (parts.length > 1 || zipEntry.dir) {
-                if (parts[0] && parts[0] !== "." && parts[0] !== "__MACOSX")
+                if (parts[0] && parts[0] !== "." && parts[0] !== "")
                   foundFolders.add(parts[0]);
               }
-
-              // Identify Extensions
               if (!zipEntry.dir) {
-                const filename = parts[parts.length - 1];
-                const extParts = filename.split(".");
-                if (extParts.length > 1) {
-                  const ext = "." + extParts.pop().toLowerCase();
-                  if (ext.length < 7) foundExtensions.add(ext);
-                }
+                const ext = "." + relativePath.split(".").pop().toLowerCase();
+                if (ext.length < 7 && ext.length > 1) foundExtensions.add(ext);
               }
             });
-
             renderFilters();
             document.getElementById("uploadScreen").style.display = "none";
             document.getElementById("filterSection").style.display = "block";
@@ -408,7 +341,6 @@
         extDiv.innerHTML = "";
         folderDiv.innerHTML = "";
 
-        // Auto-Check logic: Uncheck binaries/images by default for cleaner PDF
         foundExtensions.forEach((ext) => {
           const isMedia = [
             ".png",
@@ -420,39 +352,25 @@
             ".dll",
             ".zip",
           ].includes(ext);
-          const isChecked = !isMedia ? "checked" : "";
-          extDiv.innerHTML += `
-                <label class="chk-item">
-                    <input type="checkbox" class="filter-ext" value="${ext}" ${isChecked}> ${ext}
-                </label>`;
+          extDiv.innerHTML += `<label class="chk-item"><input type="checkbox" class="filter-ext" value="${ext}" ${!isMedia ? "checked" : ""}> ${ext}</label>`;
         });
-
-        // Auto-Check logic: Uncheck system folders
         foundFolders.forEach((folder) => {
           const isJunk = [
             "node_modules",
             ".git",
             "dist",
             "build",
-            ".next",
             "coverage",
           ].includes(folder);
-          const isChecked = !isJunk ? "checked" : "";
-          folderDiv.innerHTML += `
-                <label class="chk-item">
-                    <input type="checkbox" class="filter-folder" value="${folder}" ${isChecked}> /${folder}
-                </label>`;
+          folderDiv.innerHTML += `<label class="chk-item"><input type="checkbox" class="filter-folder" value="${folder}" ${!isJunk ? "checked" : ""}> /${folder}</label>`;
         });
       }
 
-      // --- PHASE 2: CONVERSION ---
       async function startConversion() {
         document.getElementById("filterSection").style.display = "none";
         document.getElementById("progressScreen").style.display = "block";
 
-        // Gather what to EXCLUDE (Unchecked items)
         const exclusions = { extensions: [], folders: [] };
-
         document.querySelectorAll(".filter-ext").forEach((cb) => {
           if (!cb.checked) exclusions.extensions.push(cb.value);
         });
@@ -467,11 +385,7 @@
         try {
           const res = await fetch("/convert", { method: "POST", body: fd });
           if (!res.ok) throw new Error("Server Error");
-
           const { jobId } = await res.json();
-
-          // SSE Listener
-          // Inside async function startConversion() ...
 
           const es = new EventSource(`/progress/${jobId}`);
           const consoleDiv = document.getElementById("consoleLog");
@@ -481,56 +395,42 @@
 
           es.onmessage = (e) => {
             const d = JSON.parse(e.data);
-
-            // update percentage text
             document.getElementById("pctTxt").innerText = d.percent + "%";
             document.getElementById("statusTxt").innerText = d.message;
 
-            // SMART STEP LOGIC: Light up steps based on keywords in the message
-            if (d.message.includes("Extracting")) {
-              setActiveStep(0);
-            } else if (
-              d.message.includes("Structure") ||
-              d.message.includes("Scanning")
-            ) {
+            if (d.message.includes("Extracting")) setActiveStep(0);
+            else if (
+              d.message.includes("Scanning") ||
+              d.message.includes("Structure")
+            )
               setActiveStep(1);
-            } else if (d.message.includes("Rendering")) {
-              setActiveStep(2);
-            } else if (d.message.includes("Index")) {
-              setActiveStep(3);
-            }
+            else if (d.message.includes("Rendering")) setActiveStep(2);
+            else if (d.message.includes("Index")) setActiveStep(3);
 
-            // Add colorful log entry
             if (d.message) {
               const line = document.createElement("div");
               line.className = "log-line";
-              const time = new Date().toLocaleTimeString("en-US", {
-                hour12: false,
-              });
-              line.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-msg">${d.message}</span>`;
+              line.innerHTML = `<span class="log-time">[${new Date().toLocaleTimeString("en-US", { hour12: false })}]</span> ${d.message}`;
               consoleDiv.appendChild(line);
               consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
 
             if (d.status === "completed") {
               es.close();
-              steps.forEach((s) => s.classList.add("done")); // Mark all green
+              steps.forEach((s) => s.classList.add("done"));
               setTimeout(() => {
                 document.getElementById("progressScreen").style.display =
                   "none";
                 document.getElementById("finalSection").style.display = "block";
                 document.getElementById("dlLink").href = d.downloadUrl;
               }, 800);
-            }
-
-            if (d.status === "failed") {
+            } else if (d.status === "failed") {
               es.close();
-              alert("Conversion Failed: " + d.message);
+              alert(d.message);
               resetUI();
             }
           };
 
-          // Helper to handle visual state of dots
           function setActiveStep(index) {
             steps.forEach((step, i) => {
               if (i < index) {
@@ -551,14 +451,15 @@
         zipFile = null;
         document.getElementById("fileIn").value = "";
         document.getElementById("uploadText").innerText =
-          "📂 Click to Analyze ZIP File";
-
+          "Click to Analyze ZIP File";
         document.getElementById("uploadScreen").style.display = "block";
         document.getElementById("filterSection").style.display = "none";
         document.getElementById("progressScreen").style.display = "none";
         document.getElementById("finalSection").style.display = "none";
         document.getElementById("consoleLog").innerHTML = "";
-        document.getElementById("bar").style.width = "0%";
+        document.querySelectorAll(".step").forEach((s) => {
+          s.classList.remove("active", "done");
+        });
       }
     </script>
   </body>

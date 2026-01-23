@@ -1,16 +1,15 @@
 {
   "name": "zenith-converter",
   "version": "1.0.0",
-  "description": "",
+  "description": "Convert any zip folder to combine pdf of any format.",
   "main": "app.js",
   "scripts": {
-    "start": "node --expose-gc --max-old-space-size=350 --gc-interval=100 app.js",
-    "start-min": "node --max-old-space-size=4096 app.js",
-    "start-max": "node --max-old-space-size=8192 app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node --expose-gc --max-old-space-size=4096 app.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "pdf-converter"
+  ],
+  "author": "Priyanshu Patel",
   "license": "ISC",
   "dependencies": {
     "adm-zip": "^0.5.16",
