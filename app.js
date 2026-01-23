@@ -309,4 +309,4 @@ app.get("/health", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => logger.info(`Zenith V6 Enterprise running on ${PORT}`));
+app.listen(PORT, () => logger.info(`Zenith Enterprise running on ${PORT}`));
