@@ -313,5 +313,12 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
   }
 }
 
+app.get("/health", (req, res) => {
+  const timestamp = new Date().toISOString();
+  const additionalText = "Zenith is UP!";
+  const responseText = `OK - ${timestamp} - ${additionalText}`;
+  res.send(responseText);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => logger.info(`Zenith V7 Enterprise running on ${PORT}`));
