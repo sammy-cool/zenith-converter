@@ -6,7 +6,7 @@ const AdmZip = require("adm-zip");
 const winston = require("winston");
 const PDFDocument = require("pdfkit");
 
-// --- 1. ENTERPRISE LOGGER ---
+// --- LOGGER ---
 const logger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
@@ -23,10 +23,9 @@ const logger = winston.createLogger({
 });
 
 const app = express();
-// Preserve original file name to use it later
+// PRESERVE ORIGINAL FILENAME
 const upload = multer({ dest: "uploads/" });
 
-app.use(express.static("public"));
 app.use(express.json());
 
 const jobs = {};
@@ -41,14 +40,11 @@ app.get("/progress/:jobId", (req, res) => {
     const job = jobs[req.params.jobId];
     if (job) {
       res.write(`data: ${JSON.stringify(job)}\n\n`);
-
       if (job.status === "completed" || job.status === "failed") {
         clearInterval(checkInterval);
         res.end();
         setTimeout(() => {
-          if (jobs[req.params.jobId]) {
-            delete jobs[req.params.jobId];
-          }
+          if (jobs[req.params.jobId]) delete jobs[req.params.jobId];
         }, 600000);
       }
     }
@@ -62,62 +58,60 @@ app.post("/convert", upload.single("zipfile"), async (req, res) => {
   const jobId = Date.now().toString();
   const zipPath = req.file.path;
 
-  // Capture Original Filename (Remove .zip extension)
-  let originalName = req.file.originalname || "Project_Export";
-  originalName = originalName
+  // USE ORIGINAL NAME for PDF
+  // We strip the .zip extension and sanitize special characters
+  let originalName = req.file.originalname
     .replace(/\.zip$/i, "")
     .replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+  if (!originalName) originalName = "Project_Export";
 
   let userExclusions = { extensions: [], folders: [] };
   try {
-    if (req.body.exclusions) {
-      userExclusions = JSON.parse(req.body.exclusions);
-    }
+    if (req.body.exclusions) userExclusions = JSON.parse(req.body.exclusions);
   } catch (e) {
-    logger.error("Failed to parse exclusions: " + e);
+    logger.error("Exclusion parse error");
   }
 
   jobs[jobId] = {
     status: "processing",
     percent: 0,
-    message: "Initializing Engine...",
-    pdfName: `${originalName}.pdf`, // Store name for client
+    message: "Initializing...",
+    pdfName: `${originalName}.pdf`, // Tells frontend the real name
   };
 
-  logger.info(`Job ${jobId} started for file: ${originalName}`);
   res.json({ jobId });
 
-  processZipV6(jobId, zipPath, userExclusions, originalName);
+  // Run async to not block event loop
+  await processZipV8(jobId, zipPath, userExclusions, originalName);
 });
 
-// --- V6 ENGINE ---
-async function processZipV6(jobId, zipPath, exclusions, originalName) {
+// --- V8 ENGINE ---
+async function processZipV8(jobId, zipPath, exclusions, originalName) {
   const workDir = path.join(__dirname, "temp_extracted", jobId);
-  const pdfName = `${originalName}-${jobId}.pdf`;
+  const pdfName = `${originalName}.pdf`;
   const finalPdfPath = path.join(__dirname, "public", pdfName);
 
   try {
-    // A. EXTRACT
+    // 1. EXTRACT
     jobs[jobId].message = "Extracting Archive...";
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(workDir, true);
 
-    // B. SCAN FILES (Deep Exclusion Logic)
+    // 2. SCAN & FILTER (Deep Check)
     const getFiles = (dir) => {
       let results = [];
       const list = fs.readdirSync(dir);
       for (const file of list) {
         const fullPath = path.join(dir, file);
-        // Normalize path slashes for consistency
         const relPath = path.relative(workDir, fullPath).replace(/\\/g, "/");
 
-        // Deep Folder Exclusion
-        // Split path into parts: "src/node_modules/lib" -> ["src", "node_modules", "lib"]
+        // DEEP EXCLUSION
+        // Split path: "server/node_modules/pkg" -> ["server", "node_modules", "pkg"]
         const pathSegments = relPath.split("/");
 
-        // Check if ANY segment matches a blacklisted folder
-        const isExcluded = pathSegments.some((segment) =>
-          exclusions.folders.includes(segment),
+        // If ANY part of the path is in the exclusion list, skip it.
+        const isExcluded = pathSegments.some((seg) =>
+          exclusions.folders.includes(seg),
         );
 
         if (isExcluded) continue;
@@ -135,31 +129,49 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
     };
 
     const allFiles = getFiles(workDir);
-    logger.info(`Files to process: ${allFiles.length}`);
+    logger.info(`Job ${jobId}: Found ${allFiles.length} files`);
 
-    // C. SETUP PDF
+    // 3. SETUP PDF
     const doc = new PDFDocument({
       autoFirstPage: false,
       bufferPages: true,
       margin: 40,
     });
-
     const writeStream = fs.createWriteStream(finalPdfPath);
     doc.pipe(writeStream);
 
-    // Pre-allocate Index Pages
-    // Calculate pages needed (approx 35 lines per page)
-    const requiredIndexPages = Math.ceil(allFiles.length / 35) + 1; // +1 buffer
-    jobs[jobId].message = `Allocating ${requiredIndexPages} pages for Index...`;
+    // [FEATURE: COVER PAGE] - Adds "Enterprise" feel
+    doc.addPage();
+    doc.rect(0, 0, 600, 900).fill("#1a1a1a"); // Dark Background
+    doc
+      .fillColor("#ffffff")
+      .fontSize(30)
+      .font("Helvetica-Bold")
+      .text(originalName, 50, 300, { align: "center" });
+    doc
+      .fontSize(14)
+      .font("Helvetica")
+      .text(`Generated by ansh.Priyanshu`, 50, 350, {
+        align: "center",
+        color: "#888888",
+      });
+    doc.fontSize(12).text(new Date().toDateString(), 50, 380, {
+      align: "center",
+      color: "#666666",
+    });
+
+    // 4. PRE-ALLOCATE INDEX PAGES
+    // Approx 35 lines per page.
+    const requiredIndexPages = Math.ceil(allFiles.length / 35) + 1;
+    jobs[jobId].message = "Allocating Index...";
 
     for (let k = 0; k < requiredIndexPages; k++) {
-      doc.addPage(); // Create blank pages 0, 1, 2...
+      doc.addPage(); // Reserve these pages (e.g., Page 2, 3, 4)
     }
 
-    // Move to next page for Content
-    if (requiredIndexPages > 0) doc.addPage();
+    if (requiredIndexPages > 0) doc.addPage(); // Move to Page 5 for Content
 
-    // D. RENDER CONTENT
+    // 5. RENDER CONTENT
     const tocEntries = [];
 
     for (let i = 0; i < allFiles.length; i++) {
@@ -167,23 +179,21 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
       const relPath = path.relative(workDir, filePath).replace(/\\/g, "/");
       const safeId = `dest_${i}`;
 
-      // New Page for File
       if (i > 0) doc.addPage();
       const currentPageNum = doc.bufferedPageRange().count;
       doc.addNamedDestination(safeId);
-
       tocEntries.push({ title: relPath, dest: safeId, page: currentPageNum });
 
-      // Header
+      // File Header
       doc.rect(40, 40, 530, 25).fill("#e6f0ff").stroke();
       doc
         .fillColor("#0052cc")
         .fontSize(12)
         .font("Helvetica-Bold")
-        .text(relPath, 50, 48, { underline: false });
+        .text(relPath, 50, 48);
       doc.moveDown(2);
 
-      // Code Content
+      // File Content
       try {
         const buffer = fs.readFileSync(filePath);
         const isBinary = buffer.slice(0, 1000).includes(0);
@@ -193,89 +203,82 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
             .fillColor("#cc0000")
             .fontSize(10)
             .font("Helvetica-Oblique")
-            .text("[Binary File: Omitted]", { width: 530 });
+            .text("[Binary File Omitted]");
         } else {
-          let content = buffer.toString("utf8").slice(0, 100000);
+          let content = buffer.toString("utf8").slice(0, 100000); // 100KB Limit
           content = content.replace(
             /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,
             "",
           );
-
           const lines = content.split(/\r?\n/);
           doc.fontSize(9).font("Courier");
 
           for (let j = 0; j < lines.length; j++) {
             const line = lines[j];
             const lineNum = (j + 1).toString();
-            // Calculate height to check pagination
             const rowHeight = Math.max(
               doc.heightOfString(line, { width: 480 }),
               12,
             );
 
-            if (doc.y + rowHeight > doc.page.height - 50) {
-              doc.addPage();
-            }
+            if (doc.y + rowHeight > doc.page.height - 50) doc.addPage();
 
             const currentY = doc.y;
-            // Gutter
+            // Gutter (Gray Bar)
             doc.rect(40, currentY, 35, rowHeight).fillColor("#f5f5f5").fill();
+            // Line Number
             doc
               .fillColor("#999999")
               .text(lineNum, 42, currentY + 2, { width: 30, align: "right" });
-            // Code
+            // Code Text
             doc
               .fillColor("#000000")
               .text(line, 85, currentY + 2, { width: 480, align: "left" });
 
-            doc.x = 40; // Reset X
+            doc.x = 40;
           }
         }
-      } catch (err) {
-        logger.error(err);
-      }
+      } catch (err) {}
 
       if (i % 10 === 0) {
         jobs[jobId].percent = Math.floor((i / allFiles.length) * 80);
-        jobs[jobId].message = `Rendering: ${relPath}`;
-        if (global.gc) global.gc();
+        jobs[jobId].message = `Processing: ${path.basename(relPath)}`;
+        if (global.gc) global.gc(); // Manual Garbage Collection for Low RAM
       }
     }
 
-    // E. WRITE INDEX
-    jobs[jobId].message = "Finalizing Index...";
+    // 6. WRITE INDEX
+    jobs[jobId].message = "Writing Index...";
 
-    // Switch to First Page (Page 0)
-    let indexPageIndex = 0;
+    // Go to Page 1 (The first reserved page after Cover)
+    let indexPageIndex = 1;
     doc.switchToPage(indexPageIndex);
-    doc.y = 50; // Force reset Top Margin
+    doc.y = 50; //Reset Cursor to Top
 
-    // Title
-    doc.rect(0, 0, 600, 800).fill("white");
+    doc.rect(0, 0, 600, 800).fill("white"); // Clear background
     doc
       .fillColor("#000000")
-      .fontSize(24)
+      .fontSize(20)
       .font("Helvetica-Bold")
-      .text("PROJECT INDEX", 50, 50, { align: "center" });
+      .text("INDEX", 50, 50, { align: "center" });
     doc.moveDown(2);
     doc.fontSize(10).font("Helvetica");
 
     for (const entry of tocEntries) {
-      // Check bounds
-      if (doc.y > 720) {
+      // Check if we reached bottom of page
+      if (doc.y > 700) {
         indexPageIndex++;
-        if (indexPageIndex < requiredIndexPages) {
+        if (indexPageIndex <= requiredIndexPages) {
           doc.switchToPage(indexPageIndex);
-          doc.rect(0, 0, 600, 800).fill("white"); // Clean slate
-          doc.y = 50; // Reset Cursor to Top
+          doc.rect(0, 0, 600, 800).fill("white");
+          doc.y = 50; // Reset Cursor again for new page
         } else {
-          // Should not happen if calculation is right, but safe fallback
-          doc.addPage();
+          doc.addPage(); // Fallback
           doc.y = 50;
         }
       }
 
-      // Write Entry
+      // Link
       doc.fillColor("#0052cc").text(entry.title, {
         goTo: entry.dest,
         indent: 20,
@@ -283,12 +286,10 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
         continued: true,
         underline: true,
       });
-
-      doc.fillColor("#000000").text(entry.page.toString(), {
-        align: "right",
-        underline: false,
-      });
-
+      // Page Number
+      doc
+        .fillColor("#000000")
+        .text(entry.page.toString(), { align: "right", underline: false });
       doc.moveDown(0.5);
     }
 
@@ -298,7 +299,7 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
     jobs[jobId].status = "completed";
     jobs[jobId].percent = 100;
     jobs[jobId].downloadUrl = `/${pdfName}`;
-    jobs[jobId].message = "Success! Report Generated.";
+    jobs[jobId].message = "Done!";
   } catch (error) {
     logger.error(`Job failed: ${error.message}`);
     jobs[jobId].status = "failed";
@@ -307,9 +308,7 @@ async function processZipV6(jobId, zipPath, exclusions, originalName) {
     try {
       if (await fs.pathExists(workDir)) await fs.remove(workDir);
       if (await fs.pathExists(zipPath)) await fs.unlink(zipPath);
-    } catch (e) {
-      logger.error(e);
-    }
+    } catch (e) {}
   }
 }
 
@@ -320,5 +319,13 @@ app.get("/health", (req, res) => {
   res.send(responseText);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => logger.info(`Zenith V7 Enterprise running on ${PORT}`));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+  logger.info("Home Page");
+});
+app.use(express.static("public"));
+
+const PORT = process.env.PORT || 3999;
+app.listen(PORT, () =>
+  logger.info(`Zenith V8 (Low RAM Mode) running on ${PORT}`),
+);

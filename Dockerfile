@@ -18,7 +18,7 @@ COPY . .
 RUN mkdir -p uploads temp_extracted public
 
 # Expose the port
-EXPOSE 3000
+EXPOSE 3999
 
 # Start the app with memory limits and garbage collection enabled
 CMD ["node", "--expose-gc", "--max-old-space-size=4096", "app.js"]
