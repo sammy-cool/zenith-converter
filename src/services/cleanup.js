@@ -59,7 +59,7 @@ const CleanupService = {
         // If log file is bigger than 1MB, clear it
         if (stats.size > CONSTANTS.LIMITS.MAX_LOG_SIZE_BYTES) {
           // As of now we are going to Delete it (Winston will recreate it on next log)
-          await fs.unlink(CONSTANTS.DIRS.LOG_FILE);
+          await fs.promises.truncate(CONSTANTS.DIRS.LOG_FILE, 0);
           logger.info(
             "[Maintenance] Log file was too large and has been reset.",
           );

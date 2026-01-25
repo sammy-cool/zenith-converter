@@ -1,26 +1,8 @@
-[2026-01-24T05:48:57.862Z] INFO: Zenith V7 Enterprise running on 3000
-[2026-01-24T05:49:21.792Z] INFO: Zenith V8 (Low RAM Mode) running on 3000
-[2026-01-24T05:57:05.105Z] INFO: Job 1769234222911: Found 71 files
-[2026-01-24T06:18:47.198Z] INFO: Zenith V8 (Low RAM Mode) running on 3000
-[2026-01-24T06:21:33.016Z] INFO: Job 1769235614379: Found 11 files
-[2026-01-24T06:25:01.648Z] INFO: Zenith V8 (Low RAM Mode) running on 3999
-[2026-01-24T06:37:30.400Z] INFO: Zenith V8 (Low RAM Mode) running on 3999
-[2026-01-24T06:44:33.066Z] INFO: Zenith V8 (Low RAM Mode) running on 3999
-[2026-01-24T06:45:04.857Z] INFO: Home Page
-[2026-01-24T06:45:09.896Z] INFO: Home Page
-[2026-01-24T06:45:21.484Z] INFO: Home Page
-[2026-01-24T06:45:25.344Z] INFO: Home Page
-[2026-01-24T06:45:28.686Z] INFO: Home Page
-[2026-01-24T06:45:33.285Z] INFO: Home Page
-[2026-01-24T06:45:37.387Z] INFO: Home Page
-[2026-01-24T06:46:36.020Z] INFO: Job 1769237150867: Found 3705 files
-[2026-01-24T06:52:44.459Z] INFO: Home Page
-[2026-01-24T20:15:16.101Z] INFO: Zenith V9 Enterprise running on 3000
-[2026-01-24T20:16:27.805Z] INFO: Home Page Requested - ::1 GET / Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
-[2026-01-24T20:18:31.947Z] INFO: Job 1769285819130: Found 9 files
-[2026-01-24T20:26:12.752Z] INFO: Zenith V9 Enterprise running on 3000
-[2026-01-25T04:31:20.516Z] INFO: Home Page Requested - ::1 GET / Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
-[2026-01-25T04:49:21.842Z] INFO: Zenith V9 Enterprise running on 3000
-[2026-01-25T04:50:20.498Z] INFO: Home Page Requested - ::1 GET / Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36
-[2026-01-25T04:50:54.110Z] INFO: zenith-converter: Job 1769316653976: Found 10 files to convert.
-[2026-01-25T04:57:05.642Z] INFO: Home Page Requested - ::1 GET / Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0
+[2026-01-25T18:32:56.008Z] [INFO]: [Maintenance] Log file was too large and has been reset.
+[2026-01-25T18:33:55.980Z] [INFO]: [Maintenance] Starting cleanup routine...
+[2026-01-25T18:33:56.034Z] [INFO]: [Maintenance] Scanning for files...
+[2026-01-25T18:33:56.042Z] [INFO]: [Maintenance] Deleted: MEMORIES-APP.pdf
+[2026-01-25T18:34:55.988Z] [INFO]: [Maintenance] Starting cleanup routine...
+[2026-01-25T18:35:56.003Z] [INFO]: [Maintenance] Starting cleanup routine...
+[2026-01-25T18:36:56.018Z] [INFO]: [Maintenance] Starting cleanup routine...
+[2026-01-25T18:37:56.036Z] [INFO]: [Maintenance] Starting cleanup routine...
