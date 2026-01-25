@@ -15,7 +15,7 @@ RUN npm install --omit=dev
 COPY . .
 
 # Create required directories for volume mapping
-RUN mkdir -p uploads temp_extracted public
+RUN mkdir -p uploads temp_extracted public/downloads
 
 # Expose the port
 EXPOSE 3999

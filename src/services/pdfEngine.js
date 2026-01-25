@@ -13,7 +13,7 @@ const PDFEngine = {
   async process(jobId, zipPath, exclusions, originalName) {
     const workDir = path.join(CONSTANTS.DIRS.TEMP, jobId);
     const pdfName = `${originalName}.pdf`;
-    const finalPdfPath = path.join(CONSTANTS.DIRS.PUBLIC, pdfName);
+    const finalPdfPath = path.join(CONSTANTS.DIRS.DOWNLOADS, pdfName);
 
     try {
       // 1. Extract
@@ -93,7 +93,7 @@ const PDFEngine = {
       doc.end();
       await new Promise((resolve) => writeStream.on("finish", resolve));
 
-      JobManager.complete(jobId, `/${pdfName}`);
+      JobManager.complete(jobId, `/downloads/${pdfName}`);
     } catch (error) {
       JobManager.fail(jobId, error.message);
     } finally {

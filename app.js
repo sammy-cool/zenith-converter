@@ -8,7 +8,11 @@ const CleanupService = require("./src/services/cleanup");
 const app = express();
 
 // 1. Create Required Directories
-Object.values(CONSTANTS.DIRS).forEach((dir) => fs.ensureDirSync(dir));
+Object.values(CONSTANTS.DIRS).forEach((dir) => {
+  if (!dir.endsWith(".log")) {
+    fs.ensureDirSync(dir);
+  }
+});
 
 // 2. Middleware
 app.use(express.static(CONSTANTS.DIRS.PUBLIC));
