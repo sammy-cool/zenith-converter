@@ -15,7 +15,13 @@ const CleanupService = {
   // Periodic Maintenance
   async runMaintenance() {
     logger.info("[Maintenance] Scanning for old files...");
-    const folders = [CONSTANTS.DIRS.UPLOAD, CONSTANTS.DIRS.TEMP];
+
+    const folders = [
+      CONSTANTS.DIRS.UPLOAD,
+      CONSTANTS.DIRS.TEMP,
+      CONSTANTS.DIRS.PUBLIC,
+    ];
+
     const now = Date.now();
 
     for (const folder of folders) {
@@ -24,21 +30,31 @@ const CleanupService = {
       try {
         const files = await fs.readdir(folder);
         for (const file of files) {
+          // Skip essential files like index.html or logo mostly from the public folder which we need to take care of
+          if (
+            file === "index.html" ||
+            file === "favicon.svg" ||
+            file === "logo.avif"
+          )
+            continue;
+
           const filePath = path.join(folder, file);
           const stats = await fs.stat(filePath);
 
           if (now - stats.mtimeMs > CONSTANTS.LIMITS.FILE_AGE_LIMIT_MS) {
             await fs.remove(filePath);
-            logger.info(`[Maintenance] Deleted: ${file}`);
+            logger.info(`[Maintenance] Deleted old file: ${file}`);
           }
         }
       } catch (err) {
-        logger.error(`[Maintenance] Error: ${err.message}`);
+        logger.error(
+          `[Maintenance] Error in ${path.basename(folder)}: ${err.message}`,
+        );
       }
     }
   },
 
-  // Immediate cleanup after a specific job
+  // Immediate cleanup after a specific job and We only delete the ZIP if it exists
   async cleanJob(jobId, zipPath) {
     const workDir = path.join(CONSTANTS.DIRS.TEMP, jobId);
     try {
