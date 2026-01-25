@@ -10,6 +10,7 @@ const upload = multer({ dest: CONSTANTS.DIRS.UPLOAD });
 
 // Define Routes
 router.post("/convert", upload.single("zipfile"), controller.startConversion);
+router.post("/convert/github", express.json(), controller.startGithubConversion);
 router.get("/progress/:jobId", controller.streamProgress);
 
 module.exports = router;
